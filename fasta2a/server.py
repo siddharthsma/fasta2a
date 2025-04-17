@@ -1,5 +1,7 @@
 from typing import Callable, Any, Optional, Dict, Union, List
 import json
+from datetime import datetime
+from collections import defaultdict
 from fastapi import FastAPI, Request, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
@@ -37,6 +39,9 @@ from .types import (
     TaskNotFoundError,
     InvalidParamsError,
     TaskNotCancelableError,
+    A2AStatus,
+    A2AStreamResponse,
+    TaskSendParams,
 )
 
 class FastA2A:
@@ -209,7 +214,11 @@ class FastA2A:
 
             async def event_generator():
                 try:
-                    async for event in handler(request):
+                    # Get and normalize events
+                    raw_events = handler(request.params)
+                    normalized_events = self._normalize_subscription_events(request.params, raw_events)
+
+                    async for event in normalized_events:
                         # Validate event types
                         if not isinstance(event, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
                             yield SendTaskStreamingResponse(
@@ -447,6 +456,78 @@ class FastA2A:
                 return TextPart(text=str(item))
         
         return TextPart(text=str(item))
+    
+    async def _normalize_subscription_events(params: TaskSendParams, events: AsyncGenerator):
+        """Convert simplified response types to protocol-compliant events"""
+        artifact_state = defaultdict(lambda: {"index": 0, "last_chunk": False})
+        
+        async for item in events:
+            # Handle status updates
+            if isinstance(item, A2AStatus):
+                yield TaskStatusUpdateEvent(
+                    id=params.id,
+                    status=TaskStatus(
+                        state=TaskState(item.status),
+                        timestamp=datetime.now()
+                    ),
+                    final=item.final or (item.status.lower() == TaskState.COMPLETED),
+                    metadata=item.metadata
+                )
+            
+            # Handle stream responses
+            elif isinstance(item, (A2AStreamResponse, str, list, Part, Artifact)):
+                # Convert to A2AStreamResponse if needed
+                if isinstance(item, (str, list, Part, Artifact)):
+                    item = A2AStreamResponse(content=item)
+                
+                # Process content
+                parts = []
+                content = item.content
+                
+                if isinstance(content, str):
+                    parts.append(TextPart(text=content))
+                elif isinstance(content, Part):
+                    parts.append(content)
+                elif isinstance(content, Artifact):
+                    parts = content.parts
+                    artifact_idx = content.index
+                elif isinstance(content, list):
+                    for elem in content:
+                        if isinstance(elem, str):
+                            parts.append(TextPart(text=elem))
+                        elif isinstance(elem, Part):
+                            parts.append(elem)
+                        elif isinstance(elem, Artifact):
+                            parts.extend(elem.parts)
+                
+                # Determine artifact tracking
+                artifact_idx = item.index
+                state = artifact_state[artifact_idx]
+                
+                yield TaskArtifactUpdateEvent(
+                    id=params.id,
+                    artifact=Artifact(
+                        parts=parts,
+                        index=artifact_idx,
+                        append=item.append or state["index"] == artifact_idx,
+                        lastChunk=item.final or state["last_chunk"],
+                        metadata=item.metadata
+                    )
+                )
+                
+                # Update state
+                if item.final:
+                    state["last_chunk"] = True
+                state["index"] += 1
+            
+            # Pass through existing event types
+            elif isinstance(item, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
+                yield item
+            
+            else:
+                raise InvalidParamsError(
+                    data=f"Invalid event type: {type(item).__name__}"
+                )
     
 
     def configure(self, **kwargs):

@@ -2,7 +2,7 @@ from typing import Union, Any
 from pydantic import BaseModel, Field, TypeAdapter
 from typing import Literal, List, Annotated, Optional
 from datetime import datetime
-from pydantic import model_validator, ConfigDict, field_serializer
+from pydantic import model_validator, ConfigDict, field_serializer, field_validator
 from uuid import uuid4
 from enum import Enum
 from typing_extensions import Self
@@ -381,3 +381,28 @@ class A2AResponse(BaseModel):
             except ValueError:
                 raise ValueError(f"Invalid state: {self.state}")
         return self
+    
+class A2AStatus(BaseModel):
+    status: str
+    metadata: dict[str, Any] | None = None
+    final: bool = False
+
+    @field_validator('status')
+    def validate_status(cls, v):
+        valid_states = {e.value for e in TaskState}
+        if v.lower() not in valid_states:
+            raise ValueError(f"Invalid status: {v}. Valid states: {valid_states}")
+        return v.lower()
+
+    @field_validator('final', mode='after')
+    def set_final_for_completed(cls, v, values):
+        if values.data.get('status') == TaskState.COMPLETED:
+            return True
+        return v
+
+class A2AStreamResponse(BaseModel):
+    content: Union[str, Part, List[Union[str, Part]], Artifact]
+    index: int = 0
+    append: bool = False
+    final: bool = False
+    metadata: dict[str, Any] | None = None
