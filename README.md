@@ -1,4 +1,4 @@
-# py-a2a
+# FastA2A
 
 A Python package for A2A operations.
 
@@ -11,7 +11,7 @@ pip install fasta2a
 ## Usage
 
 ```python
-import py_a2a
+import fasta2a
 
 # Your code here
 ```
