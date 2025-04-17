@@ -1,6 +1,6 @@
 # FastA2A
 
-A Python package for A2A operations.
+A Python package for creating a server following Google's Agent2Agent protocol
 
 ## Installation
 
