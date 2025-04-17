@@ -1,12 +1,13 @@
 from typing import Callable, Any, Optional, Dict, Union, List
+import json
 from fastapi import FastAPI, Request, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from sse_starlette.sse import EventSourceResponse
 from pydantic import ValidationError
 import uvicorn
 
 from .types import (
     JSONRPCResponse,
-    TaskSendParams,
     Task,
     Artifact,
     TextPart,
@@ -25,7 +26,17 @@ from .types import (
     GetTaskResponse,
     CancelTaskRequest,
     CancelTaskResponse,
-    TaskQueryParams,
+    TaskStatusUpdateEvent,
+    TaskArtifactUpdateEvent,
+    JSONParseError,
+    InvalidRequestError,
+    MethodNotFoundError,
+    ContentTypeNotSupportedError,
+    InternalError,
+    UnsupportedOperationError,
+    TaskNotFoundError,
+    InvalidParamsError,
+    TaskNotCancelableError,
 )
 
 class FastA2A:
@@ -113,125 +124,283 @@ class FastA2A:
 
     def _handle_send_task(self, request_data: dict) -> SendTaskResponse:
         try:
+            # Validate request format
             request = SendTaskRequest.model_validate(request_data)
             handler = self.handlers.get("tasks/send")
             
             if not handler:
                 return SendTaskResponse(
-                    id=request_data.get("id"),
-                    error=JSONRPCError(code=-32601, message="Handler not registered")
+                    id=request.id,
+                    error=MethodNotFoundError()
                 )
 
-            raw_result = handler(request)
-            params = request.params
+            try:
+                raw_result = handler(request)
+            except TaskNotFoundError as e:
+                return SendTaskResponse(
+                    id=request.id,
+                    error=e
+                )
+            except ContentTypeNotSupportedError as e:
+                return SendTaskResponse(
+                    id=request.id,
+                    error=e
+                )
+            except Exception as e:
+                return SendTaskResponse(
+                    id=request.id,
+                    error=InternalError(data=str(e))
+                )
 
-            # Handle A2AResponse or default to completed
-            if isinstance(raw_result, A2AResponse):
-                task_state = raw_result.state
-                response_content = raw_result.content
-            else:
-                task_state = TaskState.COMPLETED
-                response_content = raw_result
+            # Handle response content
+            try:
+                if isinstance(raw_result, A2AResponse):
+                    task_state = raw_result.state
+                    response_content = raw_result.content
+                else:
+                    task_state = TaskState.COMPLETED
+                    response_content = raw_result
 
-            artifacts = self._normalize_artifacts(response_content)
-            
-            task = Task(
-                id=params.id,
-                sessionId=params.sessionId,
-                status=TaskStatus(state=task_state),
-                artifacts=artifacts,
-                metadata=params.metadata
-            )
-            
-            return SendTaskResponse(id=request_data.get("id"), result=task)
-        
-        except Exception as e:
+                artifacts = self._normalize_artifacts(response_content)
+                
+                task = Task(
+                    id=request.params.id,
+                    sessionId=request.params.sessionId,
+                    status=TaskStatus(state=task_state),
+                    artifacts=artifacts,
+                    metadata=request.params.metadata or {}
+                )
+                
+                return SendTaskResponse(
+                    id=request.id,
+                    result=task
+                )
+
+            except ValidationError as e:
+                return SendTaskResponse(
+                    id=request.id,
+                    error=InvalidParamsError(data=e.errors())
+                )
+
+        except ValidationError as e:
             return SendTaskResponse(
                 id=request_data.get("id"),
-                error=JSONRPCError(code=-32000, message="Server error", data=str(e))
+                error=InvalidRequestError(data=e.errors())
+            )
+        except json.JSONDecodeError as e:
+            return SendTaskResponse(
+                id=request_data.get("id"),
+                error=JSONParseError(data=str(e))
             )
         
+        
+    async def _handle_subscribe_task(self, request_data: dict):
+        try:
+            # Validate request structure
+            request = SendTaskStreamingRequest.model_validate(request_data)
+            handler = self.subscribe_handlers.get("tasks/sendSubscribe")
+            
+            if not handler:
+                return SendTaskStreamingResponse(
+                    jsonrpc="2.0",
+                    id=request.id,
+                    error=MethodNotFoundError()
+                ).model_dump()
+
+            async def event_generator():
+                try:
+                    async for event in handler(request):
+                        # Validate event types
+                        if not isinstance(event, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
+                            yield SendTaskStreamingResponse(
+                                jsonrpc="2.0",
+                                id=request.id,
+                                error=InvalidParamsError(
+                                    data=f"Invalid event type: {type(event).__name__}"
+                                )
+                            ).model_dump_json()
+                            return
+
+                        yield SendTaskStreamingResponse(
+                            jsonrpc="2.0",
+                            id=request.id,
+                            result=event
+                        ).model_dump_json()
+
+                except (TaskNotFoundError, ContentTypeNotSupportedError) as e:
+                    yield SendTaskStreamingResponse(
+                        jsonrpc="2.0",
+                        id=request.id,
+                        error=e
+                    ).model_dump_json()
+                except ValidationError as e:
+                    yield SendTaskStreamingResponse(
+                        jsonrpc="2.0",
+                        id=request.id,
+                        error=InvalidParamsError(data=e.errors())
+                    ).model_dump_json()
+                except Exception as e:
+                    yield SendTaskStreamingResponse(
+                        jsonrpc="2.0",
+                        id=request.id,
+                        error=InternalError(data=str(e))
+                    ).model_dump_json()
+
+            return EventSourceResponse(event_generator())
+
+        except ValidationError as e:
+            return SendTaskStreamingResponse(
+                jsonrpc="2.0",
+                id=request_data.get("id"),
+                error=InvalidRequestError(data=e.errors())
+            ).model_dump()
+        except json.JSONDecodeError as e:
+            return SendTaskStreamingResponse(
+                jsonrpc="2.0",
+                id=request_data.get("id"),
+                error=JSONParseError(data=str(e))
+            ).model_dump()
+        except HTTPException as e:
+            if e.status_code == 405:
+                return SendTaskStreamingResponse(
+                    jsonrpc="2.0",
+                    id=request_data.get("id"),
+                    error=UnsupportedOperationError()
+                ).model_dump()
+            return SendTaskStreamingResponse(
+                jsonrpc="2.0",
+                id=request_data.get("id"),
+                error=InternalError(data=str(e))
+            ).model_dump()
+
+
     def _handle_get_task(self, request_data: dict) -> GetTaskResponse:
         try:
-            # Validate request format
+            # Validate request structure
             request = GetTaskRequest.model_validate(request_data)
             handler = self.handlers.get("tasks/get")
             
             if not handler:
                 return GetTaskResponse(
                     id=request.id,
-                    error=JSONRPCError(
-                        code=-32601,
-                        message="Get task handler not registered"
-                    )
+                    error=MethodNotFoundError()
                 )
 
-            # Execute user handler
-            task = handler(request)
-            
-            # Validate returned task matches request
-            if task.id != request.params.id:
-                raise ValueError(f"Task ID mismatch: {task.id} vs {request.params.id}")
-            
-            # Apply history length filtering
-            if request.params.historyLength and task.history:
-                task.history = task.history[-request.params.historyLength:]
-            
-            return GetTaskResponse(
-                id=request.id,
-                result=task
-            )
+            try:
+                task = handler(request)
+                
+                # Validate task ID matches request
+                if task.id != request.params.id:
+                    return GetTaskResponse(
+                        id=request.id,
+                        error=InvalidParamsError(
+                            data=f"Returned task ID {task.id} doesn't match requested ID {request.params.id}"
+                        )
+                    )
+                
+                # Apply history length filtering
+                if request.params.historyLength and task.history:
+                    task.history = task.history[-request.params.historyLength:]
+                
+                return GetTaskResponse(
+                    id=request.id,
+                    result=task
+                )
 
-        except Exception as e:
+            except TaskNotFoundError as e:
+                return GetTaskResponse(id=request.id, error=e)
+            except ContentTypeNotSupportedError as e:
+                return GetTaskResponse(id=request.id, error=e)
+            except ValidationError as e:
+                return GetTaskResponse(
+                    id=request.id,
+                    error=InvalidParamsError(data=e.errors())
+                )
+            except Exception as e:
+                return GetTaskResponse(
+                    id=request.id,
+                    error=InternalError(data=str(e))
+                )
+
+        except ValidationError as e:
             return GetTaskResponse(
                 id=request_data.get("id"),
-                error=JSONRPCError(
-                    code=-32000,
-                    message="Failed to retrieve task",
-                    data=str(e)
-                )
+                error=InvalidRequestError(data=e.errors())
+            )
+        except json.JSONDecodeError as e:
+            return GetTaskResponse(
+                id=request_data.get("id"),
+                error=JSONParseError(data=str(e))
             )
         
 
     def _handle_cancel_task(self, request_data: dict) -> CancelTaskResponse:
         try:
-            # Validate request format
+            # Validate request structure
             request = CancelTaskRequest.model_validate(request_data)
             handler = self.handlers.get("tasks/cancel")
             
             if not handler:
                 return CancelTaskResponse(
                     id=request.id,
-                    error=JSONRPCError(
-                        code=-32601,
-                        message="Cancel task handler not registered"
-                    )
+                    error=MethodNotFoundError()
                 )
 
-            # Execute user handler
-            task = handler(request)
-            
-            # Validate returned task matches request
-            if task.id != request.params.id:
-                raise ValueError(f"Task ID mismatch: {task.id} vs {request.params.id}")
-            
-            # Apply history length filtering
-            if request.params.historyLength and task.history:
-                task.history = task.history[-request.params.historyLength:]
-            
-            return CancelTaskResponse(
-                id=request.id,
-                result=task
-            )
+            try:
+                task = handler(request)
+                
+                # Validate task ID matches request
+                if task.id != request.params.id:
+                    return CancelTaskResponse(
+                        id=request.id,
+                        error=InvalidParamsError(
+                            data=f"Task ID mismatch: {task.id} vs {request.params.id}"
+                        )
+                    )
 
-        except Exception as e:
+                # Apply history length filtering if needed
+                if request.params.historyLength and task.history:
+                    task.history = task.history[-request.params.historyLength:]
+                
+                return CancelTaskResponse(
+                    id=request.id,
+                    result=task
+                )
+
+            except TaskNotFoundError as e:
+                return CancelTaskResponse(id=request.id, error=e)
+            except TaskNotCancelableError as e:
+                return CancelTaskResponse(id=request.id, error=e)
+            except ValidationError as e:
+                return CancelTaskResponse(
+                    id=request.id,
+                    error=InvalidParamsError(data=e.errors())
+                )
+            except Exception as e:
+                return CancelTaskResponse(
+                    id=request.id,
+                    error=InternalError(data=str(e))
+                )
+
+        except ValidationError as e:
             return CancelTaskResponse(
                 id=request_data.get("id"),
-                error=JSONRPCError(
-                    code=-32000,
-                    message="Failed to retrieve task",
-                    data=str(e)
+                error=InvalidRequestError(data=e.errors())
+            )
+        except json.JSONDecodeError as e:
+            return CancelTaskResponse(
+                id=request_data.get("id"),
+                error=JSONParseError(data=str(e))
+            )
+        except HTTPException as e:
+            if e.status_code == 405:
+                return CancelTaskResponse(
+                    id=request_data.get("id"),
+                    error=UnsupportedOperationError()
                 )
+            return CancelTaskResponse(
+                id=request_data.get("id"),
+                error=InternalError(data=str(e))
             )
 
     def _normalize_artifacts(self, content: Any) -> List[Artifact]:
@@ -295,14 +464,4 @@ class FastA2A:
             host=self.server_config["host"],
             port=self.server_config["port"],
             reload=self.server_config["reload"]
-        )
-
-    def _error_response(self, request_id: Any, code: int, message: str, data: Any = None):
-        return JSONRPCResponse(
-            id=request_id,
-            error=JSONRPCError(
-                code=code,
-                message=message,
-                data=data
-            )
         )

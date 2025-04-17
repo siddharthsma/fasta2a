@@ -2,8 +2,7 @@ annotated-types==0.7.0
 anyio==4.9.0
 certifi==2025.1.31
 click==8.1.8
-# Editable Git install with no remote (fasta2a==0.1.0)
--e /Users/apple/Desktop/Code/fasta2a
+-e git+https://github.com/siddharthsma/fasta2a.git@3558d8421669e571c00fa0918e012a7d871e2a2e#egg=fasta2a
 fastapi==0.115.12
 h11==0.14.0
 httpcore==1.0.8
@@ -17,6 +16,7 @@ pydantic_core==2.33.1
 pytest==8.3.5
 setuptools==78.1.0
 sniffio==1.3.1
+sse-starlette==2.2.1
 starlette==0.46.2
 typing-inspection==0.4.0
 typing_extensions==4.13.2
