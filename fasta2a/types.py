@@ -370,16 +370,16 @@ They are used to help with the implementation of the server.
 """
 
 class A2AResponse(BaseModel):
-    state: Union[TaskState, str]
+    status: Union[TaskStatus, str]
     content: Union[str, List[Any], Part, Artifact, List[Part], List[Artifact]]
     
     @model_validator(mode="after")
     def validate_state(self) -> 'A2AResponse':
-        if isinstance(self.state, str):
+        if isinstance(self.status, str):
             try:
-                self.state = TaskState(self.state.lower())
+                self.status = TaskStatus(state=self.status.lower())
             except ValueError:
-                raise ValueError(f"Invalid state: {self.state}")
+                raise ValueError(f"Invalid state: {self.status}")
         return self
     
 class A2AStatus(BaseModel):

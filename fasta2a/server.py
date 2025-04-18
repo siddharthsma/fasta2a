@@ -1,5 +1,6 @@
-from typing import Callable, Any, Optional, Dict, Union, List
+from typing import Callable, Any, Optional, Dict, Union, List, AsyncGenerator
 import json
+import inspect
 from datetime import datetime
 from collections import defaultdict
 from fastapi import FastAPI, Request, HTTPException, APIRouter
@@ -7,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 from pydantic import ValidationError
 import uvicorn
+from fastapi.responses import StreamingResponse
+
 
 from .types import (
     JSONRPCResponse,
@@ -14,6 +17,8 @@ from .types import (
     Artifact,
     TextPart,
     FilePart,
+    FileContent,
+    DataPart,
     Part,
     TaskStatus,
     TaskState,
@@ -59,7 +64,7 @@ class FastA2A:
         }
 
     def _setup_routes(self):
-        @self.app.post("/")
+        @self.app.post("/")    
         async def handle_request(request: Request):
             try:
                 data = await request.json()
@@ -74,7 +79,13 @@ class FastA2A:
                     )
                 ).model_dump()
             
-            response = self.process_request(request_obj.model_dump())
+            response = await self.process_request(request_obj.model_dump())
+
+            # <-- Accept both SSE‐style responses:
+            if isinstance(response, (EventSourceResponse, StreamingResponse)):
+                return response
+
+            # <-- Everything else is a normal pydantic JSONRPCResponse
             return response.model_dump()
 
 
@@ -102,13 +113,13 @@ class FastA2A:
             return func
         return decorator
 
-    def process_request(self, request_data: dict) -> JSONRPCResponse:
+    async def process_request(self, request_data: dict) -> JSONRPCResponse:
         try:
             method = request_data.get("method")
             if method == "tasks/send":
                 return self._handle_send_task(request_data)
             elif method == "tasks/sendSubscribe":
-                return self._handle_subscribe_task(request_data)
+                return await self._handle_subscribe_task(request_data)
             elif method == "tasks/get":
                 return self._handle_get_task(request_data)
             elif method == "tasks/cancel":
@@ -141,26 +152,14 @@ class FastA2A:
 
             try:
                 raw_result = handler(request)
-            except TaskNotFoundError as e:
-                return SendTaskResponse(
-                    id=request.id,
-                    error=e
-                )
-            except ContentTypeNotSupportedError as e:
-                return SendTaskResponse(
-                    id=request.id,
-                    error=e
-                )
-            except Exception as e:
-                return SendTaskResponse(
-                    id=request.id,
-                    error=InternalError(data=str(e))
-                )
+                
+                # If handler already returns a SendTaskResponse, return it directly
+                if isinstance(raw_result, SendTaskResponse):
+                    return raw_result
 
-            # Handle response content
-            try:
+                # Existing processing for other return types
                 if isinstance(raw_result, A2AResponse):
-                    task_state = raw_result.state
+                    task_state = raw_result.status.state
                     response_content = raw_result.content
                 else:
                     task_state = TaskState.COMPLETED
@@ -181,10 +180,16 @@ class FastA2A:
                     result=task
                 )
 
-            except ValidationError as e:
+            except Exception as e:
+                # Handle case where handler returns SendTaskResponse with error
+                if isinstance(e, JSONRPCError):
+                    return SendTaskResponse(
+                        id=request.id,
+                        error=e
+                    )
                 return SendTaskResponse(
                     id=request.id,
-                    error=InvalidParamsError(data=e.errors())
+                    error=InternalError(data=str(e))
                 )
 
         except ValidationError as e:
@@ -197,90 +202,95 @@ class FastA2A:
                 id=request_data.get("id"),
                 error=JSONParseError(data=str(e))
             )
+
         
-        
-    async def _handle_subscribe_task(self, request_data: dict):
+    async def _handle_subscribe_task(self, request_data: dict) -> Union[EventSourceResponse, SendTaskStreamingResponse]:
         try:
-            # Validate request structure
             request = SendTaskStreamingRequest.model_validate(request_data)
-            handler = self.subscribe_handlers.get("tasks/sendSubscribe")
+            handler = self.subscriptions.get("tasks/sendSubscribe")
             
             if not handler:
                 return SendTaskStreamingResponse(
                     jsonrpc="2.0",
                     id=request.id,
                     error=MethodNotFoundError()
-                ).model_dump()
+                )
 
             async def event_generator():
+                
                 try:
-                    # Get and normalize events
-                    raw_events = handler(request.params)
+                    raw_events = handler(request)
                     normalized_events = self._normalize_subscription_events(request.params, raw_events)
 
-                    async for event in normalized_events:
-                        # Validate event types
-                        if not isinstance(event, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
+                    async for item in normalized_events:
+                        try:
+                            if isinstance(item, SendTaskStreamingResponse):
+                                yield item.model_dump_json()
+                                continue
+
+                            # Add validation for proper event types
+                            if not isinstance(item, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
+                                raise ValueError(f"Invalid event type: {type(item).__name__}")
+
                             yield SendTaskStreamingResponse(
                                 jsonrpc="2.0",
                                 id=request.id,
-                                error=InvalidParamsError(
-                                    data=f"Invalid event type: {type(event).__name__}"
-                                )
+                                result=item
                             ).model_dump_json()
-                            return
 
-                        yield SendTaskStreamingResponse(
-                            jsonrpc="2.0",
-                            id=request.id,
-                            result=event
-                        ).model_dump_json()
+                        except Exception as e:
+                            yield SendTaskStreamingResponse(
+                                jsonrpc="2.0",
+                                id=request.id,
+                                error=InternalError(data=str(e))
+                            ).model_dump_json()
+                        
 
-                except (TaskNotFoundError, ContentTypeNotSupportedError) as e:
-                    yield SendTaskStreamingResponse(
-                        jsonrpc="2.0",
-                        id=request.id,
-                        error=e
-                    ).model_dump_json()
-                except ValidationError as e:
-                    yield SendTaskStreamingResponse(
-                        jsonrpc="2.0",
-                        id=request.id,
-                        error=InvalidParamsError(data=e.errors())
-                    ).model_dump_json()
                 except Exception as e:
+                    error = InternalError(data=str(e))
+                    if "not found" in str(e).lower():
+                        error = TaskNotFoundError()
                     yield SendTaskStreamingResponse(
                         jsonrpc="2.0",
                         id=request.id,
-                        error=InternalError(data=str(e))
+                        error=error
                     ).model_dump_json()
+                    
+            async def sse_stream():
+                async for chunk in event_generator():
+                    # each chunk is already JSON; SSE wants "data: <payload>\n\n"
+                    yield (f"data: {chunk}\n\n").encode("utf-8")
 
-            return EventSourceResponse(event_generator())
+            return StreamingResponse(
+                sse_stream(),
+                media_type="text/event-stream; charset=utf-8"
+            )
+
 
         except ValidationError as e:
             return SendTaskStreamingResponse(
                 jsonrpc="2.0",
                 id=request_data.get("id"),
                 error=InvalidRequestError(data=e.errors())
-            ).model_dump()
+            )
         except json.JSONDecodeError as e:
             return SendTaskStreamingResponse(
                 jsonrpc="2.0",
                 id=request_data.get("id"),
                 error=JSONParseError(data=str(e))
-            ).model_dump()
+            )
         except HTTPException as e:
             if e.status_code == 405:
                 return SendTaskStreamingResponse(
                     jsonrpc="2.0",
                     id=request_data.get("id"),
                     error=UnsupportedOperationError()
-                ).model_dump()
+                )
             return SendTaskStreamingResponse(
                 jsonrpc="2.0",
                 id=request_data.get("id"),
                 error=InternalError(data=str(e))
-            ).model_dump()
+            )
 
 
     def _handle_get_task(self, request_data: dict) -> GetTaskResponse:
@@ -443,7 +453,7 @@ class FastA2A:
 
     def _create_part(self, item: Any) -> Part:
         """Convert primitive types to proper Part models"""
-        if isinstance(item, (TextPart, FilePart)):
+        if isinstance(item, (TextPart, FilePart, DataPart)):
             return item
         
         if isinstance(item, str):
@@ -457,12 +467,18 @@ class FastA2A:
         
         return TextPart(text=str(item))
     
-    async def _normalize_subscription_events(params: TaskSendParams, events: AsyncGenerator):
-        """Convert simplified response types to protocol-compliant events"""
+    
+    
+    async def _normalize_subscription_events(self, params: TaskSendParams, events: AsyncGenerator) -> AsyncGenerator[Union[SendTaskStreamingResponse, TaskStatusUpdateEvent, TaskArtifactUpdateEvent], None]:
         artifact_state = defaultdict(lambda: {"index": 0, "last_chunk": False})
-        
+    
         async for item in events:
-            # Handle status updates
+            # Pass through fully formed responses immediately
+            if isinstance(item, SendTaskStreamingResponse):
+                yield item
+                continue
+
+            # Handle protocol status updates
             if isinstance(item, A2AStatus):
                 yield TaskStatusUpdateEvent(
                     id=params.id,
@@ -474,33 +490,34 @@ class FastA2A:
                     metadata=item.metadata
                 )
             
-            # Handle stream responses
-            elif isinstance(item, (A2AStreamResponse, str, list, Part, Artifact)):
+            # Handle stream content
+            elif isinstance(item, (A2AStreamResponse, str, bytes, TextPart, FilePart, DataPart, Artifact, list)):
                 # Convert to A2AStreamResponse if needed
-                if isinstance(item, (str, list, Part, Artifact)):
+                if not isinstance(item, A2AStreamResponse):
                     item = A2AStreamResponse(content=item)
-                
-                # Process content
+
+                # Process content into parts
                 parts = []
                 content = item.content
                 
                 if isinstance(content, str):
                     parts.append(TextPart(text=content))
-                elif isinstance(content, Part):
+                elif isinstance(content, bytes):
+                    parts.append(FilePart(file=FileContent(bytes=content)))
+                elif isinstance(content, (TextPart, FilePart, DataPart)):
                     parts.append(content)
                 elif isinstance(content, Artifact):
                     parts = content.parts
-                    artifact_idx = content.index
                 elif isinstance(content, list):
                     for elem in content:
                         if isinstance(elem, str):
                             parts.append(TextPart(text=elem))
-                        elif isinstance(elem, Part):
+                        elif isinstance(elem, (TextPart, FilePart, DataPart)):
                             parts.append(elem)
                         elif isinstance(elem, Artifact):
                             parts.extend(elem.parts)
-                
-                # Determine artifact tracking
+
+                # Track artifact state
                 artifact_idx = item.index
                 state = artifact_state[artifact_idx]
                 
@@ -515,18 +532,23 @@ class FastA2A:
                     )
                 )
                 
-                # Update state
+                # Update artifact state tracking
                 if item.final:
                     state["last_chunk"] = True
                 state["index"] += 1
             
-            # Pass through existing event types
+            # Pass through protocol events directly
             elif isinstance(item, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
                 yield item
             
+            # Handle invalid types
             else:
-                raise InvalidParamsError(
-                    data=f"Invalid event type: {type(item).__name__}"
+                yield SendTaskStreamingResponse(
+                    jsonrpc="2.0",
+                    id=params.id,  # Typically comes from request, but using params.id as fallback
+                    error=InvalidParamsError(
+                        data=f"Unsupported event type: {type(item).__name__}"
+                    )
                 )
     
 

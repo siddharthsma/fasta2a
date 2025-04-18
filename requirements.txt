@@ -1,8 +1,9 @@
 annotated-types==0.7.0
 anyio==4.9.0
 certifi==2025.1.31
+charset-normalizer==3.4.1
 click==8.1.8
--e git+https://github.com/siddharthsma/fasta2a.git@3558d8421669e571c00fa0918e012a7d871e2a2e#egg=fasta2a
+-e git+https://github.com/siddharthsma/fasta2a.git@74f00c9dc2d300bf5808ea82d8caba7b1f16a932#egg=fasta2a
 fastapi==0.115.12
 h11==0.14.0
 httpcore==1.0.8
@@ -14,10 +15,12 @@ pluggy==1.5.0
 pydantic==2.11.3
 pydantic_core==2.33.1
 pytest==8.3.5
+requests==2.32.3
 setuptools==78.1.0
 sniffio==1.3.1
 sse-starlette==2.2.1
 starlette==0.46.2
 typing-inspection==0.4.0
 typing_extensions==4.13.2
+urllib3==2.4.0
 uvicorn==0.34.1
