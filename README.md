@@ -34,7 +34,7 @@ app = FastA2A("EchoServer")
 @app.on_send_task()
 def handle_task(request):
     """Echo the input text back as a completed task"""
-    input_text = request.params.message.parts[0].text
+    input_text = request.params.message
     return f"Echo: {input_text}"
 
 if __name__ == "__main__":

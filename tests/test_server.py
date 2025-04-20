@@ -78,6 +78,35 @@ def test_send_task(client, a2a_server):
     assert data["result"]["sessionId"]  # Should be generated
 
 
+def test_send_task_with_string_response(client, a2a_server):
+    # Register task handler correctly
+    @a2a_server.on_send_task()
+    def handle_task(request: SendTaskRequest):
+        return "Hello, World!"
+
+    # Send valid request with required fields
+    response = client.post("/", json={
+        "jsonrpc": "2.0",
+        "id": "1",
+        "method": "tasks/send",
+        "params": {
+            "id": "test-task-1",
+            "message": {
+                "role": "user",
+                "parts": [{"type": "text", "text": "Test message"}]
+            }
+        }
+    })
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "1"
+    assert data["result"]["status"]["state"] == "completed"
+    assert len(data["result"]["artifacts"]) == 1
+    assert data["result"]["artifacts"][0]["parts"][0]["text"] == "Hello, World!"
+    assert data["result"]["sessionId"]  # Should be generated
+
+
 def test_send_task_with_artifact(client, a2a_server):
     # Test handler returning raw protocol types
     @a2a_server.on_send_task()
