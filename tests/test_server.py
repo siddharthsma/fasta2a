@@ -7,6 +7,8 @@ from fasta2a.types import (
     TaskSendParams,
     SendTaskRequest,
     GetTaskRequest,
+    CancelTaskRequest,
+    CancelTaskResponse,
     Task,
     TaskStatus,
     TaskState,
@@ -70,7 +72,7 @@ def test_send_task(client, a2a_server):
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == "1"
-    assert data["result"]["status"]["state"] == TaskState.COMPLETED
+    assert data["result"]["status"]["state"] == "completed"
     assert len(data["result"]["artifacts"]) == 1
     assert data["result"]["artifacts"][0]["parts"][0]["text"] == "Hello, World!"
     assert data["result"]["sessionId"]  # Should be generated
@@ -175,7 +177,7 @@ def test_send_task_direct_response(client, a2a_server):
     assert result["metadata"]["source"] == "direct-test"
 
 
-def test_get_task(client, a2a_server):
+def test_get_task_with_task(client, a2a_server):
     # Register get handler with proper typing
     @a2a_server.task_get()
     def get_task(request: GetTaskRequest) -> Task:
@@ -203,8 +205,86 @@ def test_get_task(client, a2a_server):
     print(data)
     assert data["id"] == "2"
     assert data["result"]["id"] == "test-task-id"
-    assert data["result"]["status"]["state"] == TaskState.COMPLETED
+    assert data["result"]["status"]["state"] == "completed"
     assert data["result"]["sessionId"] == "test-session"
+
+
+def test_get_task_with_string(client, a2a_server):
+    # Register get handler with proper typing
+    @a2a_server.task_get()
+    def get_task(request: GetTaskRequest) -> Task:
+        return "Test artifact"
+
+    # Test get request
+    response = client.post("/", json={
+        "jsonrpc": "2.0",
+        "id": "2",
+        "method": "tasks/get",
+        "params": {
+            "id": "test-task-id"
+        }
+    })
+
+    assert response.status_code == 200
+    data = response.json()
+    print(data)
+    assert data["id"] == "2"
+    assert data["result"]["id"] == "test-task-id"
+    assert data["result"]["status"]["state"] == "completed"
+
+
+def test_successful_cancellation(client, a2a_server):
+    """Test successful cancellation with direct CancelTaskResponse"""
+    @a2a_server.task_cancel()
+    def handle_cancel(request: CancelTaskRequest) -> CancelTaskResponse:
+        return CancelTaskResponse(
+            id=request.id,
+            result=Task(
+                id=request.params.id,
+                sessionId="cancel-session",
+                status=TaskStatus(state=TaskState.CANCELED),
+                artifacts=[],
+                history=[]
+            )
+        )
+
+    response = client.post("/", json={
+        "jsonrpc": "2.0",
+        "id": "cancel-1",
+        "method": "tasks/cancel",
+        "params": {
+            "id": "task-123",
+            "metadata": {"reason": "user_request"}
+        }
+    })
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["result"]["status"]["state"] == "canceled"
+    assert data["result"]["id"] == "task-123"
+
+def test_cancellation_with_a2astatus(client, a2a_server):
+    """Test cancellation using A2AStatus return"""
+    @a2a_server.task_cancel()
+    def handle_cancel(request: CancelTaskRequest) -> A2AStatus:
+        return A2AStatus(
+            status="canceled",
+            metadata={
+                "by": "admin"
+            }
+        )
+
+    response = client.post("/", json={
+        "jsonrpc": "2.0",
+        "id": "cancel-2",
+        "method": "tasks/cancel",
+        "params": {"id": "task-456"}
+    })
+
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["status"]["state"] == "canceled"
+    assert "by" in result["metadata"]
 
 
 def test_send_subscribe_with_direct_events(client, a2a_server):
@@ -333,6 +413,32 @@ def test_send_subscribe_task(client, a2a_server):
     # Final event - completed status
     assert events[-1]["result"]["status"]["state"] == "completed"
     assert events[-1]["result"]["final"] is True
+
+
+
+def test_duplicate_on_send_task_registration():
+    """Test that @on_send_task can only be registered once"""
+    app = FastA2A("test-app")
+
+    # First registration should work
+    @app.on_send_task()
+    def handler1(request: SendTaskRequest):
+        return "First handler"
+
+    # Second registration should fail
+    with pytest.raises(RuntimeError) as exc_info:
+        @app.on_send_task()
+        def handler2(request: SendTaskRequest):
+            return "Second handler"
+
+    # Verify error message
+    assert "can only be used once" in str(exc_info.value)
+    assert "tasks/send" in str(exc_info.value)
+    assert "@on_send_task" in str(exc_info.value)
+
+    # Verify handler registry
+    assert app.handlers["tasks/send"] is handler1
+    assert "tasks/send" in app._registered_decorators
 
 
 

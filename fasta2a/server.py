@@ -9,6 +9,7 @@ from sse_starlette.sse import EventSourceResponse
 from pydantic import ValidationError
 import uvicorn
 from fastapi.responses import StreamingResponse
+from uuid import uuid4
 
 
 from .types import (
@@ -56,12 +57,14 @@ class FastA2A:
         self.subscriptions: Dict[str, Callable] = {}
         self.app = FastAPI(title=name, **fastapi_kwargs)
         self.router = APIRouter()
+        self._registered_decorators = set()
         self._setup_routes()
         self.server_config = {
             "host": "0.0.0.0",
             "port": 8000,
             "reload": False
         }
+        
 
     def _setup_routes(self):
         @self.app.post("/")    
@@ -88,28 +91,42 @@ class FastA2A:
             # <-- Everything else is a normal pydantic JSONRPCResponse
             return response.model_dump()
 
+    def _register_handler(self, method: str, func: Callable, handler_name: str, handler_type: str = "handler"):
+        """Shared registration logic with duplicate checking"""
+        if method in self._registered_decorators:
+            raise RuntimeError(
+                f"@{handler_name} decorator for method '{method}' "
+                f"can only be used once per FastA2A instance"
+            )
+        
+        if handler_type == "handler":
+            self.handlers[method] = func
+        else:
+            self.subscriptions[method] = func
+            
+        self._registered_decorators.add(method)
 
     def on_send_task(self) -> Callable:
         def decorator(func: Callable[[SendTaskRequest], Any]) -> Callable:
-            self.handlers["tasks/send"] = func
+            self._register_handler("tasks/send", func, "on_send_task", "handler")
             return func
         return decorator
 
     def on_send_subscribe_task(self) -> Callable:
         def decorator(func: Callable) -> Callable:
-            self.subscriptions["tasks/sendSubscribe"] = func
+            self._register_handler("tasks/sendSubscribe", func, "on_send_subscribe_task", "subscription")
             return func
         return decorator
     
     def task_get(self):
         def decorator(func: Callable[[GetTaskRequest], Task]):
-            self.handlers["tasks/get"] = func
+            self._register_handler("tasks/get", func, "task_get", "handler")
             return func
         return decorator
     
     def task_cancel(self):
         def decorator(func: Callable[[CancelTaskRequest], Task]):
-            self.handlers["tasks/cancel"] = func
+            self._register_handler("tasks/cancel", func, "task_cancel", "handler")
             return func
         return decorator
 
@@ -152,29 +169,19 @@ class FastA2A:
 
             try:
                 raw_result = handler(request)
-                
-                # If handler already returns a SendTaskResponse, return it directly
+            
                 if isinstance(raw_result, SendTaskResponse):
                     return raw_result
 
-                # Existing processing for other return types
-                if isinstance(raw_result, A2AResponse):
-                    task_state = raw_result.status.state
-                    response_content = raw_result.content
-                else:
-                    task_state = TaskState.COMPLETED
-                    response_content = raw_result
-
-                artifacts = self._normalize_artifacts(response_content)
-                
-                task = Task(
-                    id=request.params.id,
-                    sessionId=request.params.sessionId,
-                    status=TaskStatus(state=task_state),
-                    artifacts=artifacts,
+                # Use unified task builder
+                task = self._build_task(
+                    content=raw_result,
+                    task_id=request.params.id,
+                    session_id=request.params.sessionId,
+                    default_status=TaskState.COMPLETED,
                     metadata=request.params.metadata or {}
                 )
-                
+
                 return SendTaskResponse(
                     id=request.id,
                     result=task
@@ -306,36 +313,28 @@ class FastA2A:
                 )
 
             try:
-                task = handler(request)
-                
-                # Validate task ID matches request
-                if task.id != request.params.id:
-                    return GetTaskResponse(
-                        id=request.id,
-                        error=InvalidParamsError(
-                            data=f"Returned task ID {task.id} doesn't match requested ID {request.params.id}"
-                        )
-                    )
-                
-                # Apply history length filtering
-                if request.params.historyLength and task.history:
-                    task.history = task.history[-request.params.historyLength:]
-                
-                return GetTaskResponse(
-                    id=request.id,
-                    result=task
+                raw_result = handler(request)
+            
+                if isinstance(raw_result, GetTaskResponse):
+                    return self._validate_response_id(raw_result, request)
+
+                # Use unified task builder with different defaults
+                task = self._build_task(
+                    content=raw_result,
+                    task_id=request.params.id,
+                    default_status=TaskState.COMPLETED,
+                    metadata=request.params.metadata or {}
                 )
 
-            except TaskNotFoundError as e:
-                return GetTaskResponse(id=request.id, error=e)
-            except ContentTypeNotSupportedError as e:
-                return GetTaskResponse(id=request.id, error=e)
-            except ValidationError as e:
-                return GetTaskResponse(
-                    id=request.id,
-                    error=InvalidParamsError(data=e.errors())
-                )
+                return self._finalize_task_response(request, task)
+
             except Exception as e:
+                # Handle case where handler returns SendTaskResponse with error
+                if isinstance(e, JSONRPCError):
+                    return GetTaskResponse(
+                        id=request.id,
+                        error=e
+                    )
                 return GetTaskResponse(
                     id=request.id,
                     error=InternalError(data=str(e))
@@ -366,36 +365,37 @@ class FastA2A:
                 )
 
             try:
-                task = handler(request)
-                
-                # Validate task ID matches request
-                if task.id != request.params.id:
-                    return CancelTaskResponse(
-                        id=request.id,
-                        error=InvalidParamsError(
-                            data=f"Task ID mismatch: {task.id} vs {request.params.id}"
-                        )
+                raw_result = handler(request)
+            
+                # Handle direct CancelTaskResponse returns
+                if isinstance(raw_result, CancelTaskResponse):
+                    return self._validate_response_id(raw_result, request)
+
+                # Handle A2AStatus returns
+                if isinstance(raw_result, A2AStatus):
+                    task = self._build_task_from_status(
+                        status=raw_result,
+                        task_id=request.params.id,
+                        metadata=raw_result.metadata or {}
+                    )
+                else:
+                    # Existing processing for other return types
+                    task = self._build_task(
+                        content=raw_result,
+                        task_id=request.params.id,
+                        metadata=raw_result.metadata or {}
                     )
 
-                # Apply history length filtering if needed
-                if request.params.historyLength and task.history:
-                    task.history = task.history[-request.params.historyLength:]
-                
-                return CancelTaskResponse(
-                    id=request.id,
-                    result=task
-                )
+                # Final validation and packaging
+                return self._finalize_cancel_response(request, task)
 
-            except TaskNotFoundError as e:
-                return CancelTaskResponse(id=request.id, error=e)
-            except TaskNotCancelableError as e:
-                return CancelTaskResponse(id=request.id, error=e)
-            except ValidationError as e:
-                return CancelTaskResponse(
-                    id=request.id,
-                    error=InvalidParamsError(data=e.errors())
-                )
             except Exception as e:
+                # Handle case where handler returns SendTaskResponse with error
+                if isinstance(e, JSONRPCError):
+                    return CancelTaskResponse(
+                        id=request.id,
+                        error=e
+                    )
                 return CancelTaskResponse(
                     id=request.id,
                     error=InternalError(data=str(e))
@@ -451,6 +451,92 @@ class FastA2A:
         except ValidationError:
             return [Artifact(parts=[TextPart(text=str(content))])]
 
+
+    def _build_task(
+    self,
+    content: Any,
+    task_id: str,
+    session_id: Optional[str] = None,
+    default_status: TaskState = TaskState.COMPLETED,
+    metadata: Optional[dict] = None
+) -> Task:
+        """Universal task construction from various return types."""
+        if isinstance(content, Task):
+            return content
+        
+        # Handle A2AResponse for sendTask case
+        if isinstance(content, A2AResponse):
+            status = content.status if isinstance(content.status, TaskStatus) \
+                else TaskStatus(state=content.status)
+            artifacts = self._normalize_content(content.content)
+            return Task(
+                id=task_id,
+                sessionId=session_id or str(uuid4()),  # Generate if missing
+                status=status,
+                artifacts=artifacts,
+                metadata=metadata or {}
+            )
+
+        try:  # Attempt direct validation for dicts
+            return Task.model_validate(content)
+        except ValidationError:
+            pass
+
+        # Fallback to content normalization
+        artifacts = self._normalize_content(content)
+        return Task(
+            id=task_id,
+            sessionId=session_id,
+            status=TaskStatus(state=default_status),
+            artifacts=artifacts,
+            metadata=metadata or {}
+        )
+    
+    def _build_task_from_status(self, status: A2AStatus, task_id: str, metadata: dict) -> Task:
+        """Convert A2AStatus to a Task with proper cancellation state."""
+        return Task(
+            id=task_id,
+            status=TaskStatus(
+                state=TaskState(status.status),
+                timestamp=datetime.now()
+            ),
+            metadata=metadata,
+            # Include empty/default values for required fields
+            sessionId="",  
+            artifacts=[],
+            history=[]
+        )
+
+
+    def _normalize_content(self, content: Any) -> List[Artifact]:
+        """Handle all content types for both sendTask and getTask cases."""
+        if isinstance(content, Artifact):
+            return [content]
+        
+        if isinstance(content, list):
+            if all(isinstance(item, Artifact) for item in content):
+                return content
+            return [Artifact(parts=self._parts_from_mixed(content))]
+        
+        if isinstance(content, (str, Part, dict)):
+            return [Artifact(parts=[self._create_part(content)])]
+        
+        try:  # Handle raw artifact dicts
+            return [Artifact.model_validate(content)]
+        except ValidationError:
+            return [Artifact(parts=[TextPart(text=str(content))])]
+
+    def _parts_from_mixed(self, items: List[Any]) -> List[Part]:
+        """Extract parts from mixed content lists."""
+        parts = []
+        for item in items:
+            if isinstance(item, Artifact):
+                parts.extend(item.parts)
+            else:
+                parts.append(self._create_part(item))
+        return parts
+
+
     def _create_part(self, item: Any) -> Part:
         """Convert primitive types to proper Part models"""
         if isinstance(item, (TextPart, FilePart, DataPart)):
@@ -467,6 +553,60 @@ class FastA2A:
         
         return TextPart(text=str(item))
     
+
+    # Response validation helper
+    def _validate_response_id(self, response: Union[SendTaskResponse, GetTaskResponse], request) -> Union[SendTaskResponse, GetTaskResponse]:
+        if response.result and response.result.id != request.params.id:
+            return type(response)(
+                id=request.id,
+                error=InvalidParamsError(
+                    data=f"Task ID mismatch: {response.result.id} vs {request.params.id}"
+                )
+            )
+        return response
+    
+    # Might refactor this later 
+    def _finalize_task_response(self, request: GetTaskRequest, task: Task) -> GetTaskResponse:
+        """Final validation and processing for getTask responses."""
+        # Validate task ID matches request
+        if task.id != request.params.id:
+            return GetTaskResponse(
+                id=request.id,
+                error=InvalidParamsError(
+                    data=f"Task ID mismatch: {task.id} vs {request.params.id}"
+                )
+            )
+        
+        # Apply history length filtering
+        if request.params.historyLength and task.history:
+            task.history = task.history[-request.params.historyLength:]
+        
+        return GetTaskResponse(
+            id=request.id,
+            result=task
+        )
+    
+    def _finalize_cancel_response(self, request: CancelTaskRequest, task: Task) -> CancelTaskResponse:
+        """Final validation and processing for cancel responses."""
+        if task.id != request.params.id:
+            return CancelTaskResponse(
+                id=request.id,
+                error=InvalidParamsError(
+                    data=f"Task ID mismatch: {task.id} vs {request.params.id}"
+                )
+            )
+        
+        # Ensure cancellation-specific requirements are met
+        if task.status.state not in [TaskState.CANCELED, TaskState.COMPLETED]:
+            return CancelTaskResponse(
+                id=request.id,
+                error=TaskNotCancelableError()
+            )
+        
+        return CancelTaskResponse(
+            id=request.id,
+            result=task
+        )
     
     
     async def _normalize_subscription_events(self, params: TaskSendParams, events: AsyncGenerator) -> AsyncGenerator[Union[SendTaskStreamingResponse, TaskStatusUpdateEvent, TaskArtifactUpdateEvent], None]:
