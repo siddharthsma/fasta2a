@@ -24,7 +24,14 @@ from smarta2a.types import (
     A2AStatus,
     A2AStreamResponse,
     SendTaskResponse,  
-    Message
+    Message,
+    InternalError,
+    TaskNotFoundError,
+    SetTaskPushNotificationRequest,
+    GetTaskPushNotificationRequest,
+    SetTaskPushNotificationResponse,
+    GetTaskPushNotificationResponse,
+    TaskPushNotificationConfig
 )
 
 @pytest.fixture
@@ -498,6 +505,147 @@ def test_send_task_content_access():
     
     # Verify original access still works
     assert request.content == request.params.message.parts
+
+
+def test_set_notification_success(a2a_server, client):
+    # Test basic success case with no return value
+    @a2a_server.set_notification()
+    def handle_set(req: SetTaskPushNotificationRequest):
+        # No return needed - just validate request
+        assert req.params.id == "test123"
+    
+    request_data = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tasks/pushNotification/set",
+        "params": {
+            "id": "test123",
+            "pushNotificationConfig": {
+                "url": "https://example.com/callback",
+                "authentication": {
+                    "schemes": ["jwt"]
+                }
+            }
+        }
+    }
+    
+    response = client.post("/", json=request_data).json()
+    
+    assert response["result"]["id"] == "test123"
+    assert response["result"]["pushNotificationConfig"]["url"] == request_data["params"]["pushNotificationConfig"]["url"]
+    assert response["result"]["pushNotificationConfig"]["authentication"]["schemes"] == ["jwt"]
+
+def test_set_notification_custom_response(a2a_server, client):
+    # Test handler returning custom response
+    @a2a_server.set_notification()
+    def handle_set(req):
+        return SetTaskPushNotificationResponse(
+            id=req.id,
+            result=TaskPushNotificationConfig(
+                id="test123",
+                pushNotificationConfig={
+                    "url": "custom-url",
+                    "token": "secret"
+                }
+            )
+        )
+    
+    response = client.post("/", json={
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tasks/pushNotification/set",
+        "params": {
+            "id": "test123",
+            "pushNotificationConfig": {"url": "https://example.com"}
+        }
+    }).json()
+    
+    assert response["result"]["pushNotificationConfig"]["url"] == "custom-url"
+    assert "secret" in response["result"]["pushNotificationConfig"]["token"]
+
+
+# --- Get Notification Tests ---
+
+def test_get_notification_success(a2a_server, client):
+    # Test successful config retrieval
+    @a2a_server.get_notification()
+    def handle_get(req: GetTaskPushNotificationRequest):
+        return TaskPushNotificationConfig(
+            id=req.params.id,
+            pushNotificationConfig={
+                "url": "https://test.com",
+                "token": "abc123"
+            }
+        )
+    
+    request_data = {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "tasks/pushNotification/get",
+        "params": {"id": "test456"}
+    }
+    
+    response = client.post("/", json=request_data).json()
+    
+    assert response["result"]["id"] == "test456"
+    assert response["result"]["pushNotificationConfig"]["url"] == "https://test.com"
+
+def test_get_notification_direct_response(a2a_server, client):
+    # Test handler returning full response object
+    @a2a_server.get_notification()
+    def handle_get(req):
+        return GetTaskPushNotificationResponse(
+            id=req.id,
+            result=TaskPushNotificationConfig(
+                id=req.params.id,
+                pushNotificationConfig={
+                    "url": "direct-response.example",
+                    "authentication": {"schemes": ["basic"]}
+                }
+            )
+        )
+    
+    response = client.post("/", json={
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "tasks/pushNotification/get",
+        "params": {"id": "test789"}
+    }).json()
+    
+    assert "direct-response" in response["result"]["pushNotificationConfig"]["url"]
+    assert "basic" in response["result"]["pushNotificationConfig"]["authentication"]["schemes"]
+
+def test_get_notification_validation_error(a2a_server, client):
+    # Test invalid response from handler
+    @a2a_server.get_notification()
+    def handle_get(req):
+        return {"invalid": "config"}
+    
+    response = client.post("/", json={
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "tasks/pushNotification/get",
+        "params": {"id": "test999"}
+    }).json()
+    
+    assert response["error"]["code"] == -32602  # Invalid params
+    
+
+def test_get_notification_error_propagation(a2a_server, client):
+    # Test exception handling
+    @a2a_server.get_notification()
+    def handle_get(req):
+        raise InternalError(message="Storage failure")
+    
+    response = client.post("/", json={
+        "jsonrpc": "2.0",
+        "id": 7,
+        "method": "tasks/pushNotification/get",
+        "params": {"id": "test-error"}
+    }).json()
+    
+    assert response["error"]["code"] == -32603  # Internal error code
+    
 
 
 

@@ -48,6 +48,11 @@ from .types import (
     A2AStatus,
     A2AStreamResponse,
     TaskSendParams,
+    SetTaskPushNotificationRequest,
+    GetTaskPushNotificationRequest,
+    SetTaskPushNotificationResponse,
+    GetTaskPushNotificationResponse,
+    TaskPushNotificationConfig,
 )
 
 class SmartA2A:
@@ -129,6 +134,18 @@ class SmartA2A:
             self._register_handler("tasks/cancel", func, "task_cancel", "handler")
             return func
         return decorator
+    
+    def set_notification(self):
+        def decorator(func: Callable[[SetTaskPushNotificationRequest], None]) -> Callable:
+            self._register_handler("tasks/pushNotification/set", func, "set_notification", "handler")
+            return func
+        return decorator
+    
+    def get_notification(self):
+        def decorator(func: Callable[[GetTaskPushNotificationRequest], Union[TaskPushNotificationConfig, GetTaskPushNotificationResponse]]):
+            self._register_handler("tasks/pushNotification/get", func, "get_notification", "handler")
+            return func
+        return decorator
 
     async def process_request(self, request_data: dict) -> JSONRPCResponse:
         try:
@@ -141,6 +158,10 @@ class SmartA2A:
                 return self._handle_get_task(request_data)
             elif method == "tasks/cancel":
                 return self._handle_cancel_task(request_data)
+            elif method == "tasks/pushNotification/set":
+                return self._handle_set_notification(request_data)
+            elif method == "tasks/pushNotification/get":
+                return self._handle_get_notification(request_data)
             else:
                 return self._error_response(
                     request_data.get("id"),
@@ -421,6 +442,102 @@ class SmartA2A:
                 id=request_data.get("id"),
                 error=InternalError(data=str(e))
             )
+
+    def _handle_set_notification(self, request_data: dict) -> SetTaskPushNotificationResponse:
+        try:
+            request = SetTaskPushNotificationRequest.model_validate(request_data)
+            handler = self.handlers.get("tasks/pushNotification/set")
+            
+            if not handler:
+                return SetTaskPushNotificationResponse(
+                    id=request.id,
+                    error=MethodNotFoundError()
+                )
+
+            try:
+                # Execute handler (may or may not return something)
+                raw_result = handler(request)
+                
+                # If handler returns nothing - build success response from request params
+                if raw_result is None:
+                    return SetTaskPushNotificationResponse(
+                        id=request.id,
+                        result=request.params
+                    )
+                
+                # If handler returns a full response object
+                if isinstance(raw_result, SetTaskPushNotificationResponse):
+                    return raw_result
+                    
+
+            except Exception as e:
+                if isinstance(e, JSONRPCError):
+                    return SetTaskPushNotificationResponse(
+                        id=request.id,
+                        error=e
+                    )
+                return SetTaskPushNotificationResponse(
+                    id=request.id,
+                    error=InternalError(data=str(e))
+                )
+
+        except ValidationError as e:
+            return SetTaskPushNotificationResponse(
+                id=request_data.get("id"),
+                error=InvalidRequestError(data=e.errors())
+            )
+                      
+
+    def _handle_get_notification(self, request_data: dict) -> GetTaskPushNotificationResponse:
+        try:
+            request = GetTaskPushNotificationRequest.model_validate(request_data)
+            handler = self.handlers.get("tasks/pushNotification/get")
+            
+            if not handler:
+                return GetTaskPushNotificationResponse(
+                    id=request.id,
+                    error=MethodNotFoundError()
+                )
+            
+            try:
+                raw_result = handler(request)
+                
+                if isinstance(raw_result, GetTaskPushNotificationResponse):
+                    return raw_result
+                else:
+                    # Validate raw_result as TaskPushNotificationConfig
+                    config = TaskPushNotificationConfig.model_validate(raw_result)
+                    return GetTaskPushNotificationResponse(
+                        id=request.id,
+                        result=config
+                    )
+            except ValidationError as e:
+                return GetTaskPushNotificationResponse(
+                    id=request.id,
+                    error=InvalidParamsError(data=e.errors())
+                )
+            except Exception as e:
+                if isinstance(e, JSONRPCError):
+                    return GetTaskPushNotificationResponse(
+                        id=request.id,
+                        error=e
+                    )
+                return GetTaskPushNotificationResponse(
+                    id=request.id,
+                    error=InternalError(data=str(e))
+                )
+
+        except ValidationError as e:
+            return GetTaskPushNotificationResponse(
+                id=request_data.get("id"),
+                error=InvalidRequestError(data=e.errors())
+            )
+        except json.JSONDecodeError as e:
+            return GetTaskPushNotificationResponse(
+                id=request_data.get("id"),
+                error=JSONParseError(data=str(e))
+            )
+
 
     def _normalize_artifacts(self, content: Any) -> List[Artifact]:
         """Handle both A2AResponse content and regular returns"""
