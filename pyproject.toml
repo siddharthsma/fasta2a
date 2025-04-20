@@ -1,6 +1,34 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "smarta2a"
+version = "0.1.0"
+authors = [
+    { name = "Siddharth Ambegaonkar", email = "siddharthsma@gmail.com" },
+]
+description = "A Python package for creating servers and clients following Google's Agent2Agent protocol"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "fastapi",
+    "pydantic",
+    "uvicorn",
+    "sse-starlette",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/siddharthsma/smarta2a"
+"Bug Tracker" = "https://github.com/siddharthsma/smarta2a/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["smarta2a"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

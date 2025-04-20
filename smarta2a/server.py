@@ -50,7 +50,7 @@ from .types import (
     TaskSendParams,
 )
 
-class FastA2A:
+class SmartA2A:
     def __init__(self, name: str, **fastapi_kwargs):
         self.name = name
         self.handlers: Dict[str, Callable] = {}
@@ -96,7 +96,7 @@ class FastA2A:
         if method in self._registered_decorators:
             raise RuntimeError(
                 f"@{handler_name} decorator for method '{method}' "
-                f"can only be used once per FastA2A instance"
+                f"can only be used once per SmartA2A instance"
             )
         
         if handler_type == "handler":

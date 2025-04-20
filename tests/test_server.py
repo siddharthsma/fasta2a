@@ -2,8 +2,8 @@ import pytest
 import json
 import requests
 from fastapi.testclient import TestClient
-from fasta2a import FastA2A
-from fasta2a.types import (
+from smarta2a import SmartA2A
+from smarta2a.types import (
     TaskSendParams,
     SendTaskRequest,
     GetTaskRequest,
@@ -29,7 +29,7 @@ from fasta2a.types import (
 
 @pytest.fixture
 def a2a_server():
-    server = FastA2A("test-server")
+    server = SmartA2A("test-server")
     return server
 
 @pytest.fixture
@@ -448,7 +448,7 @@ def test_send_subscribe_task(client, a2a_server):
 
 def test_duplicate_on_send_task_registration():
     """Test that @on_send_task can only be registered once"""
-    app = FastA2A("test-app")
+    app = SmartA2A("test-app")
 
     # First registration should work
     @app.on_send_task()

@@ -1,4 +1,4 @@
-# FastA2A
+# SmartA2A
 
 A Python package for creating a server following Google's Agent2Agent protocol
 
@@ -21,15 +21,15 @@ A Python package for creating a server following Google's Agent2Agent protocol
 ## Installation
 
 ```bash
-pip install fasta2a
+pip install smarta2a
 ```
 
 ## Simple Echo Server Implementation
 
 ```python
-from fasta2a import FastA2A
+from smarta2a import SmartA2A
 
-app = FastA2A("EchoServer")
+app = SmartA2A("EchoServer")
 
 @app.on_send_task()
 def handle_task(request):
@@ -63,8 +63,8 @@ To set up the development environment:
 
 ```bash
 # Clone the repository
-git clone https://github.com/siddharthsma/fasta2a.git
-cd fasta2a
+git clone https://github.com/siddharthsma/smarta2a.git
+cd smarta2a
 
 # Create and activate virtual environment
 python -m venv venv

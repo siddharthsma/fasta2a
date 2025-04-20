@@ -3,7 +3,7 @@ anyio==4.9.0
 certifi==2025.1.31
 charset-normalizer==3.4.1
 click==8.1.8
--e git+https://github.com/siddharthsma/fasta2a.git@74f00c9dc2d300bf5808ea82d8caba7b1f16a932#egg=fasta2a
+-e git+https://github.com/siddharthsma/smarta2a.git@main#egg=smarta2a
 fastapi==0.115.12
 h11==0.14.0
 httpcore==1.0.8
