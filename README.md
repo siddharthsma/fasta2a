@@ -2,18 +2,53 @@
 
 A Python package for creating a server following Google's Agent2Agent protocol
 
+## Features
+
+✅ **Full A2A Protocol Compliance** - Implements all required endpoints and response formats  
+⚡ **Decorator-Driven Development** - Rapid endpoint configuration with type safety 
+🧩 **Automatic Protocol Conversion - Simple returns become valid A2A responses 
+🔀 **Flexible Response Handling** - Support for Tasks, Artifacts, Streaming, and raw protocol types if needed!
+🛡️ **Built-in Validation** - Automatic Pydantic validation of A2A schemas  
+⚡ **Single File Setup - Get compliant in <10 lines of code
+🌍 **Production Ready** - CORS, async support, and error handling included
+
 ## Installation
 
 ```bash
 pip install fasta2a
 ```
 
-## Usage
+## Simple Echo Server Implementation
 
 ```python
-import fasta2a
+from fasta2a import FastA2A
 
-# Your code here
+app = FastA2A("EchoServer")
+
+@app.on_send_task()
+def handle_task(request):
+    """Echo the input text back as a completed task"""
+    input_text = request.params.message.parts[0].text
+    return f"Echo: {input_text}"
+
+if __name__ == "__main__":
+    app.run()
+```
+
+Automatically contructs the response:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "test",
+  "result": {
+    "id": "echo-task",
+    "status": {"state": "completed"},
+    "artifacts": [{
+      "parts": [{"type": "text", "text": "Echo: Hello!"}]
+    }]
+  }
+}
 ```
 
 ## Development
