@@ -5,11 +5,11 @@ A Python package for creating a server following Google's Agent2Agent protocol
 ## Features
 
 ✅ **Full A2A Protocol Compliance** - Implements all required endpoints and response formats  
-⚡ **Decorator-Driven Development** - Rapid endpoint configuration with type safety 
-🧩 **Automatic Protocol Conversion - Simple returns become valid A2A responses 
+⚡ **Decorator-Driven Development** - Rapid endpoint configuration with type safety
+🧩 **Automatic Protocol Conversion** - Simple returns become valid A2A responses 
 🔀 **Flexible Response Handling** - Support for Tasks, Artifacts, Streaming, and raw protocol types if needed!
 🛡️ **Built-in Validation** - Automatic Pydantic validation of A2A schemas  
-⚡ **Single File Setup - Get compliant in <10 lines of code
+⚡ **Single File Setup** - Get compliant in <10 lines of code
 🌍 **Production Ready** - CORS, async support, and error handling included
 
 ## Installation
