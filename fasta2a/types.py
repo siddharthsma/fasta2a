@@ -141,6 +141,22 @@ class TaskPushNotificationConfig(BaseModel):
     pushNotificationConfig: PushNotificationConfig
 
 
+## Custom Mixins
+
+class ContentMixin(BaseModel):
+    @property
+    def content(self) -> Optional[List[Part]]:
+        """Direct access to message parts when available"""
+        try:
+            # Handle different request types that contain messages
+            if hasattr(self.params, 'message'):
+                return self.params.message.parts
+            if hasattr(self, 'message'):
+                return self.message.parts
+        except AttributeError:
+            pass
+        return None
+
 ## RPC Messages
 
 
@@ -165,7 +181,7 @@ class JSONRPCResponse(JSONRPCMessage):
     error: JSONRPCError | None = None
 
 
-class SendTaskRequest(JSONRPCRequest):
+class SendTaskRequest(JSONRPCRequest, ContentMixin):
     method: Literal["tasks/send"] = "tasks/send"
     params: TaskSendParams
 
@@ -174,7 +190,7 @@ class SendTaskResponse(JSONRPCResponse):
     result: Task | None = None
 
 
-class SendTaskStreamingRequest(JSONRPCRequest):
+class SendTaskStreamingRequest(JSONRPCRequest, ContentMixin):
     method: Literal["tasks/sendSubscribe"] = "tasks/sendSubscribe"
     params: TaskSendParams
 
@@ -183,7 +199,7 @@ class SendTaskStreamingResponse(JSONRPCResponse):
     result: TaskStatusUpdateEvent | TaskArtifactUpdateEvent | None = None
 
 
-class GetTaskRequest(JSONRPCRequest):
+class GetTaskRequest(JSONRPCRequest, ContentMixin):
     method: Literal["tasks/get"] = "tasks/get"
     params: TaskQueryParams
 
@@ -192,7 +208,7 @@ class GetTaskResponse(JSONRPCResponse):
     result: Task | None = None
 
 
-class CancelTaskRequest(JSONRPCRequest):
+class CancelTaskRequest(JSONRPCRequest, ContentMixin):
     method: Literal["tasks/cancel",] = "tasks/cancel"
     params: TaskIdParams
 
@@ -201,7 +217,7 @@ class CancelTaskResponse(JSONRPCResponse):
     result: Task | None = None
 
 
-class SetTaskPushNotificationRequest(JSONRPCRequest):
+class SetTaskPushNotificationRequest(JSONRPCRequest, ContentMixin):
     method: Literal["tasks/pushNotification/set",] = "tasks/pushNotification/set"
     params: TaskPushNotificationConfig
 
@@ -210,7 +226,7 @@ class SetTaskPushNotificationResponse(JSONRPCResponse):
     result: TaskPushNotificationConfig | None = None
 
 
-class GetTaskPushNotificationRequest(JSONRPCRequest):
+class GetTaskPushNotificationRequest(JSONRPCRequest, ContentMixin):
     method: Literal["tasks/pushNotification/get",] = "tasks/pushNotification/get"
     params: TaskIdParams
 
@@ -219,7 +235,7 @@ class GetTaskPushNotificationResponse(JSONRPCResponse):
     result: TaskPushNotificationConfig | None = None
 
 
-class TaskResubscriptionRequest(JSONRPCRequest):
+class TaskResubscriptionRequest(JSONRPCRequest, ContentMixin):
     method: Literal["tasks/resubscribe",] = "tasks/resubscribe"
     params: TaskIdParams
 

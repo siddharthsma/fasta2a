@@ -17,6 +17,7 @@ from fasta2a.types import (
     FilePart,
     FileContent,
     A2AResponse,
+    A2ARequest,
     TaskQueryParams,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
@@ -468,6 +469,35 @@ def test_duplicate_on_send_task_registration():
     # Verify handler registry
     assert app.handlers["tasks/send"] is handler1
     assert "tasks/send" in app._registered_decorators
+
+
+def test_send_task_content_access():
+    """Test content property for SendTaskRequest with message parts"""
+    request = A2ARequest.validate_python({
+        "jsonrpc": "2.0",
+        "id": "1",
+        "method": "tasks/send",
+        "params": {
+            "id": "test-task",
+            "message": {
+                "role": "user",
+                "parts": [
+                    {"type": "text", "text": "Hello"},
+                    {"type": "file", "file": {"uri": "gs://bucket/file.txt"}}
+                ]
+            }
+        }
+    })
+    
+    assert isinstance(request, SendTaskRequest)
+    # Test direct content access
+    assert len(request.content) == 2
+    assert isinstance(request.content[0], TextPart)
+    assert request.content[0].text == "Hello"
+    assert isinstance(request.content[1], FilePart)
+    
+    # Verify original access still works
+    assert request.content == request.params.message.parts
 
 
 
