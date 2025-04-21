@@ -1,6 +1,5 @@
 from typing import Callable, Any, Optional, Dict, Union, List, AsyncGenerator
 import json
-import inspect
 from datetime import datetime
 from collections import defaultdict
 from fastapi import FastAPI, Request, HTTPException, APIRouter
@@ -11,8 +10,7 @@ import uvicorn
 from fastapi.responses import StreamingResponse
 from uuid import uuid4
 
-
-from .types import (
+from smarta2a.common.types import (
     JSONRPCResponse,
     Task,
     Artifact,
@@ -39,7 +37,6 @@ from .types import (
     JSONParseError,
     InvalidRequestError,
     MethodNotFoundError,
-    ContentTypeNotSupportedError,
     InternalError,
     UnsupportedOperationError,
     TaskNotFoundError,

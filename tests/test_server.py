@@ -2,8 +2,8 @@ import pytest
 import json
 import requests
 from fastapi.testclient import TestClient
-from smarta2a import SmartA2A
-from smarta2a.types import (
+from smarta2a.server import SmartA2A
+from smarta2a.common.types import (
     TaskSendParams,
     SendTaskRequest,
     GetTaskRequest,
@@ -18,7 +18,6 @@ from smarta2a.types import (
     FileContent,
     A2AResponse,
     A2ARequest,
-    TaskQueryParams,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
     A2AStatus,
@@ -26,7 +25,6 @@ from smarta2a.types import (
     SendTaskResponse,  
     Message,
     InternalError,
-    TaskNotFoundError,
     SetTaskPushNotificationRequest,
     GetTaskPushNotificationRequest,
     SetTaskPushNotificationResponse,
