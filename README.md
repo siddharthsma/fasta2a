@@ -27,7 +27,7 @@ pip install smarta2a
 ## Simple Echo Server Implementation
 
 ```python
-from smarta2a import SmartA2A
+from smarta2a.server import SmartA2A
 
 app = SmartA2A("EchoServer")
 
