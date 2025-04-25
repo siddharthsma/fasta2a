@@ -10,7 +10,7 @@ import uvicorn
 from fastapi.responses import StreamingResponse
 from uuid import uuid4
 
-from smarta2a.state_stores.base_state_store import StateStore
+from smarta2a.state_stores.base_state_store import BaseStateStore
 from smarta2a.history_update_strategies.history_update_strategy import HistoryUpdateStrategy
 from smarta2a.history_update_strategies.append_strategy import AppendStrategy
 from smarta2a.common.types import (
@@ -57,15 +57,15 @@ from smarta2a.common.types import (
 )
 
 class SmartA2A:
-    def __init__(self, name: str, state_store: Optional[StateStore] = None, history_strategy: HistoryUpdateStrategy = AppendStrategy(), **fastapi_kwargs):
+    def __init__(self, name: str, state_store: Optional[BaseStateStore] = None, history_strategy: HistoryUpdateStrategy = AppendStrategy(), **fastapi_kwargs):
         self.name = name
         self.handlers: Dict[str, Callable] = {}
         self.subscriptions: Dict[str, Callable] = {}
         self.app = FastAPI(title=name, **fastapi_kwargs)
         self.router = APIRouter()
         self._registered_decorators = set()
-        self.state_store: state_store
-        self.history_strategy: history_strategy
+        self.state_store = state_store
+        self.history_strategy = history_strategy
         self._setup_routes()
         self.server_config = {
             "host": "0.0.0.0",

@@ -10,7 +10,7 @@ from smarta2a.common.types import (
     Message, Task, TaskState, SendTaskRequest, StateData,
     Artifact, TextPart, TaskArtifactUpdateEvent
 )
-from smarta2a.state_stores import BaseStateStore
+from smarta2a.state_stores.base_state_store import BaseStateStore
 from smarta2a.history_update_strategies import HistoryUpdateStrategy
 
 # Fixtures
