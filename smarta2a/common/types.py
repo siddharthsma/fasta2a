@@ -57,7 +57,7 @@ Part = Annotated[Union[TextPart, FilePart, DataPart], Field(discriminator="type"
 
 
 class Message(BaseModel):
-    role: Literal["user", "agent"]
+    role: Literal["user", "agent", "system"] # Added system role for system messages
     parts: List[Part]
     metadata: dict[str, Any] | None = None
 
@@ -422,3 +422,8 @@ class A2AStreamResponse(BaseModel):
     append: bool = False
     final: bool = False
     metadata: dict[str, Any] | None = None
+
+class StateData(BaseModel):
+    session_id: str
+    history: List[Message]
+    metadata: dict[str, Any]

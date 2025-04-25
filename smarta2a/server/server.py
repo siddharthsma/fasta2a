@@ -10,6 +10,9 @@ import uvicorn
 from fastapi.responses import StreamingResponse
 from uuid import uuid4
 
+from smarta2a.state_stores.base_state_store import StateStore
+from smarta2a.history_update_strategies.history_update_strategy import HistoryUpdateStrategy
+from smarta2a.history_update_strategies.append_strategy import AppendStrategy
 from smarta2a.common.types import (
     JSONRPCResponse,
     Task,
@@ -19,6 +22,7 @@ from smarta2a.common.types import (
     FileContent,
     DataPart,
     Part,
+    Message,
     TaskStatus,
     TaskState,
     JSONRPCError,
@@ -53,13 +57,15 @@ from smarta2a.common.types import (
 )
 
 class SmartA2A:
-    def __init__(self, name: str, **fastapi_kwargs):
+    def __init__(self, name: str, state_store: Optional[StateStore] = None, history_strategy: HistoryUpdateStrategy = AppendStrategy(), **fastapi_kwargs):
         self.name = name
         self.handlers: Dict[str, Callable] = {}
         self.subscriptions: Dict[str, Callable] = {}
         self.app = FastAPI(title=name, **fastapi_kwargs)
         self.router = APIRouter()
         self._registered_decorators = set()
+        self.state_store: state_store
+        self.history_strategy: history_strategy
         self._setup_routes()
         self.server_config = {
             "host": "0.0.0.0",
@@ -184,11 +190,28 @@ class SmartA2A:
                     id=request.id,
                     error=MethodNotFoundError()
                 )
+            
+            session_id = None
+            existing_history = []
+            message = request.params.message
+
+            # State store initialization
+            if self.state_store:
+                # Get or generate session ID
+                session_id = request.params.sessionId or str(uuid4())
+                
+                # Retrieve existing state
+                state_data = self.state_store.get_state(session_id)
+                if state_data:
+                    existing_history = state_data.history
 
             try:
                 raw_result = handler(request)
             
                 if isinstance(raw_result, SendTaskResponse):
+                    # Update history in the existing response
+                    if raw_result.result:
+                        raw_result.result.history = existing_history + raw_result.result.history
                     return raw_result
 
                 # Use unified task builder
@@ -197,8 +220,49 @@ class SmartA2A:
                     task_id=request.params.id,
                     session_id=request.params.sessionId,
                     default_status=TaskState.COMPLETED,
-                    metadata=request.params.metadata or {}
+                    metadata=request.params.metadata or {},
+                    history=existing_history
                 )
+
+                # Prepare messages for history update
+                new_messages = []
+                if message:
+                    new_messages.append(message)
+                
+                # Create agent message from task artifacts
+                if task.artifacts:
+                    agent_parts = [p for a in task.artifacts for p in a.parts]
+                    agent_message = Message(
+                        role="agent",
+                        parts=agent_parts,
+                        metadata=task.metadata
+                    )
+                    new_messages.append(agent_message)
+
+                # Apply history update strategy
+                updated_history = self.history_strategy.update_history(
+                    existing_history=existing_history,
+                    new_messages=new_messages
+                )
+
+                # Update state store if enabled
+                if self.state_store and session_id:
+                    self.state_store.update_state(
+                        session_id=session_id,
+                        history=updated_history,
+                        metadata=task.metadata
+                    )
+
+                # Update task with final history
+                task.history = updated_history
+                if session_id:
+                    task.sessionId = session_id
+
+
+                # Handle direct SendTaskResponse returns
+                if isinstance(raw_result, SendTaskResponse):
+                    raw_result.result = task
+                    return raw_result
 
                 return SendTaskResponse(
                     id=request.id,
@@ -572,11 +636,21 @@ class SmartA2A:
     task_id: str,
     session_id: Optional[str] = None,
     default_status: TaskState = TaskState.COMPLETED,
-    metadata: Optional[dict] = None
+    metadata: Optional[dict] = None,
+    history: Optional[List[Message]] = None
 ) -> Task:
         """Universal task construction from various return types."""
+        history = history or []
+
         if isinstance(content, Task):
-            return content
+            return Task(
+            id=content.id,
+            sessionId=content.sessionId or session_id,
+            status=content.status,
+            artifacts=content.artifacts,
+            metadata=content.metadata or metadata or {},
+            history=history + content.history  # Append new history to existing
+        )
         
         # Handle A2AResponse for sendTask case
         if isinstance(content, A2AResponse):
@@ -588,12 +662,20 @@ class SmartA2A:
                 sessionId=session_id or str(uuid4()),  # Generate if missing
                 status=status,
                 artifacts=artifacts,
-                metadata=metadata or {}
+                metadata=metadata or {},
+                history=history
             )
 
-        try:  # Attempt direct validation for dicts
-            return Task.model_validate(content)
-        except ValidationError:
+        # Handle raw dicts
+        try:
+            task_dict = content if isinstance(content, dict) else content.model_dump()
+            return Task(
+                **task_dict,
+                history=history,
+                sessionId=session_id or task_dict.get('sessionId'),
+                metadata=metadata or task_dict.get('metadata', {})
+            )
+        except (ValidationError, AttributeError):
             pass
 
         # Fallback to content normalization
@@ -603,7 +685,8 @@ class SmartA2A:
             sessionId=session_id,
             status=TaskStatus(state=default_status),
             artifacts=artifacts,
-            metadata=metadata or {}
+            metadata=metadata or {},
+            history=history
         )
     
     def _build_task_from_status(self, status: A2AStatus, task_id: str, metadata: dict) -> Task:
