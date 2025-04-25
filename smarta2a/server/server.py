@@ -250,9 +250,6 @@ class SmartA2A:
                         metadata=metadata  # Use merged metadata
                     )
 
-                
-                
-
                 return SendTaskResponse(
                     id=request.id,
                     result=task
@@ -756,8 +753,14 @@ class SmartA2A:
                 return content
             return [Artifact(parts=self._parts_from_mixed(content))]
         
-        if isinstance(content, (str, Part, dict)):
+        #if isinstance(content, (str, Part, dict)):
+        #   return [Artifact(parts=[self._create_part(content)])]
+        if isinstance(content, str):
             return [Artifact(parts=[self._create_part(content)])]
+        if isinstance(content, dict):
+            return [Artifact.model_validate(content)]
+        if isinstance(content, TextPart) or isinstance(content, FilePart) or isinstance(content, DataPart):
+            return [Artifact(parts=[content])]
         
         try:  # Handle raw artifact dicts
             return [Artifact.model_validate(content)]
