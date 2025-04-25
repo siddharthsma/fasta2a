@@ -1,4 +1,4 @@
-from typing import Union, Any
+from typing import Union, Any, Dict
 from pydantic import BaseModel, Field, TypeAdapter
 from typing import Literal, List, Annotated, Optional
 from datetime import datetime
@@ -426,4 +426,4 @@ class A2AStreamResponse(BaseModel):
 class StateData(BaseModel):
     session_id: str
     history: List[Message]
-    metadata: dict[str, Any]
+    metadata: Dict[str, Any]
