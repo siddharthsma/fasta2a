@@ -208,6 +208,10 @@ class SmartA2A:
 
                 raw_result = handler(request)
 
+                # Handle direct SendTaskResponse returns
+                if isinstance(raw_result, SendTaskResponse):
+                    return raw_result
+
                 # Build task with updated history (before agent response)
                 task = self._build_task(
                     content=raw_result,
@@ -246,9 +250,7 @@ class SmartA2A:
                         metadata=metadata  # Use merged metadata
                     )
 
-                # Handle direct SendTaskResponse returns
-                if type(raw_result) is SendTaskResponse:
-                    return raw_result
+                
                 
 
                 return SendTaskResponse(
