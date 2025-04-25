@@ -11,7 +11,7 @@ from smarta2a.common.types import (
     Artifact, TextPart, TaskArtifactUpdateEvent
 )
 from smarta2a.state_stores.base_state_store import BaseStateStore
-from smarta2a.history_update_strategies import HistoryUpdateStrategy
+from smarta2a.history_update_strategies.history_update_strategy import HistoryUpdateStrategy
 
 # Fixtures
 class MemoryStateStore(BaseStateStore):

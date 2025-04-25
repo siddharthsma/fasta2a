@@ -194,7 +194,7 @@ class SmartA2A:
             # Always generate session ID for history tracking
             session_id = None
             existing_history = []
-            message = request.params.message
+            metadata = {}
 
             # Load existing state if store exists
             if self.state_store:
