@@ -709,7 +709,7 @@ class SmartA2A:
             task_dict = content if isinstance(content, dict) else content.model_dump()
             return Task(
                 **task_dict,
-                history=history,
+                history=history or task_dict.get('history', []),
                 sessionId=session_id or task_dict.get('sessionId'),
                 metadata=metadata or task_dict.get('metadata', {})
             )
@@ -753,8 +753,6 @@ class SmartA2A:
                 return content
             return [Artifact(parts=self._parts_from_mixed(content))]
         
-        #if isinstance(content, (str, Part, dict)):
-        #   return [Artifact(parts=[self._create_part(content)])]
         if isinstance(content, str):
             return [Artifact(parts=[self._create_part(content)])]
         if isinstance(content, dict):
