@@ -247,8 +247,9 @@ class SmartA2A:
                     )
 
                 # Handle direct SendTaskResponse returns
-                if isinstance(raw_result, SendTaskResponse):
+                if type(raw_result) is SendTaskResponse:
                     return raw_result
+                
 
                 return SendTaskResponse(
                     id=request.id,
@@ -292,8 +293,8 @@ class SmartA2A:
                 )
             # Session initialization
             session_id = request.params.sessionId or str(uuid4())
-            current_history = []
-            current_metadata = {}
+            existing_history = []
+            metadata = {}
             message = request.params.message
 
             # Load initial state if state store exists
@@ -302,8 +303,6 @@ class SmartA2A:
                 if state_data:
                     existing_history = state_data.history.copy()
                     metadata = {**state_data.metadata, **metadata}  # Merge metadata
-                    #current_history = state_data.history.copy()
-                    #current_metadata = state_data.metadata.copy()
 
 
             async def event_generator():
