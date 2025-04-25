@@ -192,9 +192,10 @@ class SmartA2A:
                 )
             
             # Always generate session ID for history tracking
-            session_id = None
+            session_id = request.params.sessionId or str(uuid4())
             existing_history = []
             metadata = {}
+            message = request.params.message
 
             # Load existing state if store exists
             if self.state_store:
@@ -204,12 +205,6 @@ class SmartA2A:
                     metadata = {**state_data.metadata, **metadata}  # Merge metadata
 
             try:
-                # Process user message through strategy FIRST
-                new_messages = [request.params.message] if request.params.message else []
-                updated_history = self.history_strategy.update_history(
-                    existing_history=existing_history,
-                    new_messages=new_messages
-                )
 
                 raw_result = handler(request)
 
@@ -220,11 +215,12 @@ class SmartA2A:
                     session_id=session_id,  # Always use generated session ID
                     default_status=TaskState.COMPLETED,
                     metadata=metadata,  # Use merged metadata
-                    history=updated_history  # History after user message
+                    history=existing_history  # History
                 )
 
-                # Process agent response through strategy
-                agent_messages = []
+                # Process messages through strategy
+                messages = []
+                messages.append(message)
                 if task.artifacts:
                     agent_parts = [p for a in task.artifacts for p in a.parts]
                     agent_message = Message(
@@ -232,17 +228,15 @@ class SmartA2A:
                         parts=agent_parts,
                         metadata=task.metadata
                     )
-                    agent_messages.append(agent_message)
+                    messages.append(agent_message)
 
                 final_history = self.history_strategy.update_history(
-                    existing_history=updated_history,
-                    new_messages=agent_messages
+                    existing_history=existing_history,
+                    new_messages=messages
                 )
 
                 # Update task with final state
                 task.history = final_history
-                task.sessionId = session_id  # Always set session ID
-                task.metadata = metadata  # Preserve merged metadata
 
                 # State store update (if enabled)
                 if self.state_store:
@@ -252,15 +246,8 @@ class SmartA2A:
                         metadata=metadata  # Use merged metadata
                     )
 
-                # Handle direct responses PROPERLY
-                if isinstance(raw_result, SendTaskResponse):
-                    # Preserve existing response but update history
-                    raw_result.result = task
-                    return raw_result
-
                 # Handle direct SendTaskResponse returns
                 if isinstance(raw_result, SendTaskResponse):
-                    raw_result.result = task
                     return raw_result
 
                 return SendTaskResponse(
@@ -307,28 +294,17 @@ class SmartA2A:
             session_id = request.params.sessionId or str(uuid4())
             current_history = []
             current_metadata = {}
+            message = request.params.message
 
             # Load initial state if state store exists
             if self.state_store:
                 state_data = self.state_store.get_state(session_id)
                 if state_data:
-                    current_history = state_data.history.copy()
-                    current_metadata = state_data.metadata.copy()
+                    existing_history = state_data.history.copy()
+                    metadata = {**state_data.metadata, **metadata}  # Merge metadata
+                    #current_history = state_data.history.copy()
+                    #current_metadata = state_data.metadata.copy()
 
-            # Process initial user message
-            if request.params.message:
-                current_history = self.history_strategy.update_history(
-                    existing_history=current_history,
-                    new_messages=[request.params.message]
-                )
-                
-                # Persist if using state store
-                if self.state_store:
-                    self.state_store.update_state(
-                        session_id=session_id,
-                        history=current_history,
-                        metadata=current_metadata
-                    )
 
             async def event_generator():
                 
@@ -337,8 +313,8 @@ class SmartA2A:
                     normalized_events = self._normalize_subscription_events(request.params, raw_events)
 
                     # Initialize streaming state
-                    stream_history = current_history.copy()
-                    stream_metadata = current_metadata.copy()
+                    stream_history = existing_history.copy()
+                    stream_metadata = metadata.copy()
 
                     async for item in normalized_events:
                         try:
@@ -355,7 +331,7 @@ class SmartA2A:
                                 # Update history using strategy
                                 new_history = self.history_strategy.update_history(
                                     existing_history=stream_history,
-                                    new_messages=[agent_message]
+                                    new_messages=[message, agent_message]
                                 )
                                 
                                 # Merge metadata
@@ -376,17 +352,6 @@ class SmartA2A:
                                 stream_history = new_history
                                 stream_metadata = new_metadata
 
-                                # Add history context to event (optional)
-                                modified_artifact = item.artifact.model_copy()
-                                modified_artifact.metadata = {
-                                    **(modified_artifact.metadata or {})
-                                }
-                                
-                                # Create modified event
-                                item = TaskArtifactUpdateEvent(
-                                    id=item.id,
-                                    artifact=modified_artifact
-                                )
                                 
                             if isinstance(item, SendTaskStreamingResponse):
                                 yield item.model_dump_json()
