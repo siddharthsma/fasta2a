@@ -55,6 +55,7 @@ from smarta2a.common.types import (
     SetTaskPushNotificationResponse,
     GetTaskPushNotificationResponse,
     TaskPushNotificationConfig,
+    StateData
 )
 
 class SmartA2A:
@@ -117,13 +118,13 @@ class SmartA2A:
         self._registered_decorators.add(method)
 
     def on_send_task(self) -> Callable:
-        def decorator(func: Callable[[SendTaskRequest, Optional[List]], Any]) -> Callable:
+        def decorator(func: Callable[[SendTaskRequest, Optional[StateData]], Any]) -> Callable:
             self._register_handler("tasks/send", func, "on_send_task", "handler")
             return func
         return decorator
 
     def on_send_subscribe_task(self) -> Callable:
-        def decorator(func: Callable[[SendTaskStreamingRequest, Optional[List[Message]]], Any]) -> Callable:
+        def decorator(func: Callable[[SendTaskStreamingRequest, Optional[StateData]], Any]) -> Callable:
             self._register_handler("tasks/sendSubscribe", func, "on_send_subscribe_task", "subscription")
             return func
         return decorator
@@ -151,14 +152,38 @@ class SmartA2A:
             self._register_handler("tasks/pushNotification/get", func, "get_notification", "handler")
             return func
         return decorator
+    
+    def _get_or_create_state_data(self, session_id: str) -> StateData:
+        state_data = None
+        if session_id:
+            state_data = self.state_store.get_state(session_id)
+            if state_data:
+                return state_data
+            else:
+                state_data = StateData(sessionId=session_id, history=[], metadata={})
+                self.state_store.update_state(session_id, state_data)
+                return state_data
+        else:
+            new_session_id = str(uuid4())
+            state_data = StateData(sessionId=new_session_id, history=[], metadata={})
+            self.state_store.update_state(new_session_id, state_data)
+            return state_data
 
     async def process_request(self, request_data: dict) -> JSONRPCResponse:
         try:
             method = request_data.get("method")
             if method == "tasks/send":
-                return self._handle_send_task(request_data)
+                if self.state_store:
+                    state_data = self._get_or_create_state_data(request_data.params.sessionId)
+                    return self._handle_send_task(request_data, state_data)
+                else:
+                    return self._handle_send_task(request_data)
             elif method == "tasks/sendSubscribe":
-                return await self._handle_subscribe_task(request_data)
+                if self.state_store:
+                    state_data = self._get_or_create_state_data(request_data.params.sessionId)
+                    return self._handle_subscribe_task(request_data, state_data)
+                else:
+                    return self._handle_subscribe_task(request_data)
             elif method == "tasks/get":
                 return self._handle_get_task(request_data)
             elif method == "tasks/cancel":
@@ -181,7 +206,7 @@ class SmartA2A:
                 e.errors()
             )
 
-    def _handle_send_task(self, request_data: dict) -> SendTaskResponse:
+    def _handle_send_task(self, request_data: dict, state_data: Optional[StateData] = None) -> SendTaskResponse:
         try:
             # Validate request format
             request = SendTaskRequest.model_validate(request_data)
@@ -194,21 +219,27 @@ class SmartA2A:
                 )
             
             # Always generate session ID for history tracking
-            session_id = request.params.sessionId or str(uuid4())
-            existing_history = []
-            metadata = {}
+            #session_id = request.params.sessionId or str(uuid4())
+            #existing_history = []
+            #metadata = {}
+            session_id = state_data.sessionId or request.params.sessionId or str(uuid4())
             message = request.params.message
+            existing_history = state_data.history.copy() or []
+            metadata = state_data.metadata or {}
 
             # Load existing state if store exists
-            if self.state_store:
-                state_data = self.state_store.get_state(session_id)
-                if state_data:
-                    existing_history = state_data.history.copy()
-                    metadata = {**state_data.metadata, **metadata}  # Merge metadata
+            #if self.state_store:
+            #    state_data = self.state_store.get_state(session_id)
+            #    if state_data:
+            #        existing_history = state_data.history.copy()
+            #        metadata = {**state_data.metadata, **metadata}  # Merge metadata
 
             try:
 
-                raw_result = handler(request, existing_history)
+                if state_data:
+                    raw_result = handler(request, state_data)
+                else:
+                    raw_result = handler(request)
 
                 # Handle direct SendTaskResponse returns
                 if isinstance(raw_result, SendTaskResponse):
@@ -280,7 +311,7 @@ class SmartA2A:
             )
 
         
-    async def _handle_subscribe_task(self, request_data: dict) -> Union[EventSourceResponse, SendTaskStreamingResponse]:
+    async def _handle_subscribe_task(self, request_data: dict, state_data: Optional[StateData] = None) -> Union[EventSourceResponse, SendTaskStreamingResponse]:
         try:
             request = SendTaskStreamingRequest.model_validate(request_data)
             handler = self.subscriptions.get("tasks/sendSubscribe")
@@ -292,17 +323,21 @@ class SmartA2A:
                     error=MethodNotFoundError()
                 )
             # Session initialization
-            session_id = request.params.sessionId or str(uuid4())
-            existing_history = []
-            metadata = {}
+            #session_id = request.params.sessionId or str(uuid4())
+            #existing_history = []
+            #metadata = {}
+            #message = request.params.message
+            session_id = state_data.sessionId or request.params.sessionId or str(uuid4())
             message = request.params.message
+            existing_history = state_data.history.copy() or []
+            metadata = state_data.metadata or {}
 
             # Load initial state if state store exists
-            if self.state_store:
-                state_data = self.state_store.get_state(session_id)
-                if state_data:
-                    existing_history = state_data.history.copy()
-                    metadata = {**state_data.metadata, **metadata}  # Merge metadata
+            #if self.state_store:
+            #    state_data = self.state_store.get_state(session_id)
+            #    if state_data:
+            #        existing_history = state_data.history.copy()
+            #        metadata = {**state_data.metadata, **metadata}  # Merge metadata
 
 
             async def event_generator():

@@ -426,6 +426,6 @@ class A2AStreamResponse(BaseModel):
     metadata: dict[str, Any] | None = None
 
 class StateData(BaseModel):
-    session_id: str
+    sessionId: str
     history: List[Message]
     metadata: Dict[str, Any]
