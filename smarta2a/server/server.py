@@ -13,6 +13,7 @@ from uuid import uuid4
 from smarta2a.state_stores.base_state_store import BaseStateStore
 from smarta2a.history_update_strategies.history_update_strategy import HistoryUpdateStrategy
 from smarta2a.history_update_strategies.append_strategy import AppendStrategy
+from smarta2a.common.task_builder import TaskBuilder
 from smarta2a.common.types import (
     JSONRPCResponse,
     Task,
@@ -72,6 +73,7 @@ class SmartA2A:
             "port": 8000,
             "reload": False
         }
+        self.task_builder = TaskBuilder(default_status=TaskState.COMPLETED)
         
 
     def _setup_routes(self):
@@ -213,11 +215,10 @@ class SmartA2A:
                     return raw_result
 
                 # Build task with updated history (before agent response)
-                task = self._build_task(
+                task = self.task_builder.build(
                     content=raw_result,
                     task_id=request.params.id,
                     session_id=session_id,  # Always use generated session ID
-                    default_status=TaskState.COMPLETED,
                     metadata=metadata,  # Use merged metadata
                     history=existing_history  # History
                 )
