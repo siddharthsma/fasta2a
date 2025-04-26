@@ -705,16 +705,16 @@ class SmartA2A:
             )
 
         # Handle raw dicts
-        try:
-            task_dict = content if isinstance(content, dict) else content.model_dump()
-            return Task(
-                **task_dict,
-                history=history or task_dict.get('history', []),
-                sessionId=session_id or task_dict.get('sessionId'),
-                metadata=metadata or task_dict.get('metadata', {})
-            )
-        except (ValidationError, AttributeError):
-            pass
+        if isinstance(content, dict):
+            try:
+                return Task(
+                    **content,
+                    history=history,
+                    sessionId=session_id or content.get('sessionId'),
+                    metadata=metadata or content.get('metadata', {})
+                )
+            except ValidationError:
+                pass
 
         # Fallback to content normalization
         artifacts = self._normalize_content(content)
