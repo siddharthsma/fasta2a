@@ -637,6 +637,17 @@ class SmartA2A:
                 error=JSONParseError(data=str(e))
             )
 
+    # Response validation helper
+    def _validate_response_id(self, response: Union[SendTaskResponse, GetTaskResponse], request) -> Union[SendTaskResponse, GetTaskResponse]:
+        if response.result and response.result.id != request.params.id:
+            return type(response)(
+                id=request.id,
+                error=InvalidParamsError(
+                    data=f"Task ID mismatch: {response.result.id} vs {request.params.id}"
+                )
+            )
+        return response
+
     # Might refactor this later 
     def _finalize_task_response(self, request: GetTaskRequest, task: Task) -> GetTaskResponse:
         """Final validation and processing for getTask responses."""
