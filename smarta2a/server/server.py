@@ -153,34 +153,37 @@ class SmartA2A:
             return func
         return decorator
     
-    def _get_or_create_state_data(self, session_id: str) -> StateData:
-        state_data = None
-        if session_id:
-            state_data = self.state_store.get_state(session_id)
-            if state_data:
-                return state_data
-            else:
-                state_data = StateData(sessionId=session_id, history=[], metadata={})
-                self.state_store.update_state(session_id, state_data)
-                return state_data
+    def _get_or_create_state_data(self, session_id: str, user_message: Message, metadata: Dict[str, Any]) -> StateData:
+        metadata = metadata or {}
+
+        if not session_id:
+            session_id = str(uuid4())
+            state_data = StateData(sessionId=session_id, history=[], metadata={})
         else:
-            new_session_id = str(uuid4())
-            state_data = StateData(sessionId=new_session_id, history=[], metadata={})
-            self.state_store.update_state(new_session_id, state_data)
-            return state_data
+            state_data = self.state_store.get_state(session_id)
+            if not state_data:
+                state_data = StateData(sessionId=session_id, history=[], metadata={})
+
+        state_data.history.append(user_message)
+        if state_data.metadata is None:
+            state_data.metadata = {}
+        state_data.metadata.update(metadata)
+
+        self.state_store.update_state(session_id, state_data)
+        return state_data
 
     async def process_request(self, request_data: dict) -> JSONRPCResponse:
         try:
             method = request_data.get("method")
             if method == "tasks/send":
                 if self.state_store:
-                    state_data = self._get_or_create_state_data(request_data.get("params").get("sessionId"))
+                    state_data = self._get_or_create_state_data(request_data.get("params").get("sessionId"), request_data.get("params").get("message"), request_data.get("params").get("metadata"))
                     return self._handle_send_task(request_data, state_data)
                 else:
                     return self._handle_send_task(request_data)
             elif method == "tasks/sendSubscribe":
                 if self.state_store:
-                    state_data = self._get_or_create_state_data(request_data.get("params").get("sessionId"))
+                    state_data = self._get_or_create_state_data(request_data.get("params").get("sessionId"), request_data.get("params").get("message"), request_data.get("params").get("metadata"))
                     return await self._handle_subscribe_task(request_data, state_data)
                 else:
                     return await self._handle_subscribe_task(request_data)
@@ -218,15 +221,16 @@ class SmartA2A:
                     error=MethodNotFoundError()
                 )
             
-            message = request.params.message
+            user_message = request.params.message
+            request_metadata = request.params.metadata or {}
             if state_data:
                 session_id = state_data.sessionId
                 existing_history = state_data.history.copy() or []
-                metadata = state_data.metadata or {}
+                metadata = state_data.metadata or {} # Request metadata has already been merged so need to do it here
             else:
                 session_id = request.params.sessionId or str(uuid4())
-                existing_history = []
-                metadata = {}
+                existing_history = [user_message]
+                metadata = request_metadata
 
 
             try:
@@ -251,7 +255,6 @@ class SmartA2A:
 
                 # Process messages through strategy
                 messages = []
-                messages.append(message)
                 if task.artifacts:
                     agent_parts = [p for a in task.artifacts for p in a.parts]
                     agent_message = Message(
@@ -321,15 +324,16 @@ class SmartA2A:
                     error=MethodNotFoundError()
                 )
             
-            message = request.params.message
+            user_message = request.params.message
+            request_metadata = request.params.metadata or {}
             if state_data:
                 session_id = state_data.sessionId
                 existing_history = state_data.history.copy() or []
-                metadata = state_data.metadata or {}
+                metadata = state_data.metadata or {} # Request metadata has already been merged so need to do it here
             else:
                 session_id = request.params.sessionId or str(uuid4())
-                existing_history = []
-                metadata = {}
+                existing_history = [user_message]
+                metadata = request_metadata
 
 
             async def event_generator():
@@ -346,11 +350,6 @@ class SmartA2A:
                     # Initialize streaming state
                     stream_history = existing_history.copy()
                     stream_metadata = metadata.copy()
-
-                    stream_history = self.history_strategy.update_history(
-                        existing_history=stream_history,
-                        new_messages=[message]
-                    )
 
                     async for item in normalized_events:
                         try:
