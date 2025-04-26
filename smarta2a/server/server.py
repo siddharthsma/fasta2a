@@ -124,7 +124,7 @@ class SmartA2A:
         return decorator
 
     def on_send_subscribe_task(self) -> Callable:
-        def decorator(func: Callable) -> Callable:
+        def decorator(func: Callable[[SendTaskStreamingRequest, Optional[StateData]], Any]) -> Callable:
             self._register_handler("tasks/sendSubscribe", func, "on_send_subscribe_task", "subscription")
             return func
         return decorator
