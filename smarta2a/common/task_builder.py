@@ -29,7 +29,7 @@ class TaskBuilder:
         self,
         content: Any,
         task_id: str,
-        session_id: str,
+        session_id: Optional[str] = None,
         metadata: Optional[Dict[str,Any]] = None,
         history: Optional[List[Message]] = None,
     ) -> Task:
@@ -46,6 +46,10 @@ class TaskBuilder:
 
         # 2) If they returned an A2AResponse, extract status/content:
         if isinstance(content, A2AResponse):
+            # prefer the sessionId inside the A2AResponse
+            sid = content.sessionId or session_id
+            # merge metadata from builder-call and from A2AResponse
+            md = {**(metadata or {}), **(content.metadata or {})}
             status = (
                 content.status
                 if isinstance(content.status, TaskStatus)
@@ -54,10 +58,10 @@ class TaskBuilder:
             artifacts = self._normalize_content(content.content)
             return Task(
                 id=task_id,
-                sessionId=session_id,
+                sessionId=sid,
                 status=status,
                 artifacts=artifacts,
-                metadata=metadata,
+                metadata=md,
                 history=history,
             )
 

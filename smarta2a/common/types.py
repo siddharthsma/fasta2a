@@ -388,6 +388,8 @@ They are used to help with the implementation of the server.
 class A2AResponse(BaseModel):
     status: Union[TaskStatus, str]
     content: Union[str, List[Any], Part, Artifact, List[Part], List[Artifact]]
+    sessionId: Optional[str] = None           
+    metadata: Optional[dict[str, Any]] = None
     
     @model_validator(mode="after")
     def validate_state(self) -> 'A2AResponse':

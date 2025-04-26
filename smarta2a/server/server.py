@@ -440,7 +440,7 @@ class SmartA2A:
                     return self._validate_response_id(raw_result, request)
 
                 # Use unified task builder with different defaults
-                task = self._build_task(
+                task = self.task_builder.build(
                     content=raw_result,
                     task_id=request.params.id,
                     default_status=TaskState.COMPLETED,
@@ -494,14 +494,14 @@ class SmartA2A:
 
                 # Handle A2AStatus returns
                 if isinstance(raw_result, A2AStatus):
-                    task = self._build_task_from_status(
-                        status=raw_result,
+                    task = self.task_builder.normalize_from_status(
+                        status=raw_result.status,
                         task_id=request.params.id,
                         metadata=raw_result.metadata or {}
                     )
                 else:
                     # Existing processing for other return types
-                    task = self._build_task(
+                    task = self.task_builder.build(
                         content=raw_result,
                         task_id=request.params.id,
                         metadata=raw_result.metadata or {}
