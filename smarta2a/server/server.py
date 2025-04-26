@@ -181,9 +181,9 @@ class SmartA2A:
             elif method == "tasks/sendSubscribe":
                 if self.state_store:
                     state_data = self._get_or_create_state_data(request_data.params.sessionId)
-                    return self._handle_subscribe_task(request_data, state_data)
+                    return await self._handle_subscribe_task(request_data, state_data)
                 else:
-                    return self._handle_subscribe_task(request_data)
+                    return await self._handle_subscribe_task(request_data)
             elif method == "tasks/get":
                 return self._handle_get_task(request_data)
             elif method == "tasks/cancel":
