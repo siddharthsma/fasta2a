@@ -637,6 +637,49 @@ class SmartA2A:
                 error=JSONParseError(data=str(e))
             )
 
+    # Might refactor this later 
+    def _finalize_task_response(self, request: GetTaskRequest, task: Task) -> GetTaskResponse:
+        """Final validation and processing for getTask responses."""
+        # Validate task ID matches request
+        if task.id != request.params.id:
+            return GetTaskResponse(
+                id=request.id,
+                error=InvalidParamsError(
+                    data=f"Task ID mismatch: {task.id} vs {request.params.id}"
+                )
+            )
+        
+        # Apply history length filtering
+        if request.params.historyLength and task.history:
+            task.history = task.history[-request.params.historyLength:]
+        
+        return GetTaskResponse(
+            id=request.id,
+            result=task
+        )
+    
+    def _finalize_cancel_response(self, request: CancelTaskRequest, task: Task) -> CancelTaskResponse:
+        """Final validation and processing for cancel responses."""
+        if task.id != request.params.id:
+            return CancelTaskResponse(
+                id=request.id,
+                error=InvalidParamsError(
+                    data=f"Task ID mismatch: {task.id} vs {request.params.id}"
+                )
+            )
+        
+        # Ensure cancellation-specific requirements are met
+        if task.status.state not in [TaskState.CANCELED, TaskState.COMPLETED]:
+            return CancelTaskResponse(
+                id=request.id,
+                error=TaskNotCancelableError()
+            )
+        
+        return CancelTaskResponse(
+            id=request.id,
+            result=task
+        )
+
 
     async def _normalize_subscription_events(self, params: TaskSendParams, events: AsyncGenerator) -> AsyncGenerator[Union[SendTaskStreamingResponse, TaskStatusUpdateEvent, TaskArtifactUpdateEvent], None]:
         artifact_state = defaultdict(lambda: {"index": 0, "last_chunk": False})
