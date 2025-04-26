@@ -443,7 +443,6 @@ class SmartA2A:
                 task = self.task_builder.build(
                     content=raw_result,
                     task_id=request.params.id,
-                    default_status=TaskState.COMPLETED,
                     metadata=request.params.metadata or {}
                 )
 
