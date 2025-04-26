@@ -138,7 +138,6 @@ def test_send_task_with_artifact(client, a2a_server):
 
     assert response.status_code == 200
     data = response.json()
-    print(response.json())
     assert data["result"]["status"]["state"] == "completed"
     artifact = data["result"]["artifacts"][0]
     assert artifact["name"] == "test-artifact"

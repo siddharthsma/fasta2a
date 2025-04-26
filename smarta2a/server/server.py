@@ -117,13 +117,13 @@ class SmartA2A:
         self._registered_decorators.add(method)
 
     def on_send_task(self) -> Callable:
-        def decorator(func: Callable[[SendTaskRequest], Any]) -> Callable:
+        def decorator(func: Callable[[SendTaskRequest, Optional[List]], Any]) -> Callable:
             self._register_handler("tasks/send", func, "on_send_task", "handler")
             return func
         return decorator
 
     def on_send_subscribe_task(self) -> Callable:
-        def decorator(func: Callable) -> Callable:
+        def decorator(func: Callable[[SendTaskStreamingRequest, Optional[List[Message]]], Any]) -> Callable:
             self._register_handler("tasks/sendSubscribe", func, "on_send_subscribe_task", "subscription")
             return func
         return decorator
@@ -208,7 +208,7 @@ class SmartA2A:
 
             try:
 
-                raw_result = handler(request)
+                raw_result = handler(request, existing_history)
 
                 # Handle direct SendTaskResponse returns
                 if isinstance(raw_result, SendTaskResponse):
@@ -308,7 +308,7 @@ class SmartA2A:
             async def event_generator():
                 
                 try:
-                    raw_events = handler(request)
+                    raw_events = handler(request, existing_history)
                     normalized_events = self._normalize_subscription_events(request.params, raw_events)
 
                     # Initialize streaming state
