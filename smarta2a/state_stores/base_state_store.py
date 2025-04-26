@@ -6,9 +6,6 @@ from typing import Optional, List, Dict, Any
 from smarta2a.common.types import StateData, Message
 
 class BaseStateStore(ABC):
-    @abstractmethod
-    async def create_state(self, session_id: Optional[str] = None) -> StateData:
-        pass
     
     @abstractmethod
     async def get_state(self, session_id: str) -> Optional[StateData]:

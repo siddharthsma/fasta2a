@@ -26,12 +26,6 @@ class InMemoryStateStore(BaseStateStore):
     def __init__(self):
         self.states: Dict[str, StateData] = {}
     
-    def create_state(self, session_id: Optional[str] = None) -> StateData:
-        if session_id:
-            return StateData(sessionId=session_id, history=[], metadata={})
-        else:
-            return StateData(sessionId=str(uuid.uuid4()), history=[], metadata={})
-    
     def get_state(self, session_id: str) -> Optional[StateData]:
         return self.states.get(session_id)
     
@@ -56,7 +50,6 @@ def test_send_task_with_history_strategy_and_state_store():
     state_store = InMemoryStateStore()
     append_strategy = AppendStrategy()
 
-    state_store.create_state()
     a2a_server = SmartA2A("test-server", state_store=state_store, history_update_strategy=append_strategy)
 
     with TestClient(a2a_server.app) as client:
@@ -141,7 +134,6 @@ def test_send_subscribe_task_with_history_strategy_and_state_store():
     state_store = InMemoryStateStore()
     append_strategy = AppendStrategy()
 
-    state_store.create_state()
     a2a_server = SmartA2A("test-server", state_store=state_store, history_update_strategy=append_strategy)
 
     with TestClient(a2a_server.app) as client:
@@ -188,7 +180,6 @@ def test_send_subscribe_task_with_history_strategy_and_state_store():
 
     # Verify event sequence
     assert len(events) >= 4, f"Expected 4 events, got {len(events)}: {events}"
-    print(state_store.get_state("c295ea44-7543-4f78-b524-7a38915ad6e4"))
     assert state_store.get_state("c295ea44-7543-4f78-b524-7a38915ad6e4").history[0].role == "user"
     assert state_store.get_state("c295ea44-7543-4f78-b524-7a38915ad6e4").history[1].role == "agent"
     assert state_store.get_state("c295ea44-7543-4f78-b524-7a38915ad6e4").history[2].role == "agent"

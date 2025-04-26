@@ -180,7 +180,6 @@ class SmartA2A:
                     return self._handle_send_task(request_data)
             elif method == "tasks/sendSubscribe":
                 if self.state_store:
-                    print(request_data.get("params").get("sessionId"))
                     state_data = self._get_or_create_state_data(request_data.get("params").get("sessionId"))
                     return await self._handle_subscribe_task(request_data, state_data)
                 else:
