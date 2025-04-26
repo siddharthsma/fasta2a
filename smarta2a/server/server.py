@@ -218,10 +218,6 @@ class SmartA2A:
                     error=MethodNotFoundError()
                 )
             
-            # Always generate session ID for history tracking
-            #session_id = request.params.sessionId or str(uuid4())
-            #existing_history = []
-            #metadata = {}
             message = request.params.message
             if state_data:
                 session_id = state_data.sessionId
@@ -232,12 +228,6 @@ class SmartA2A:
                 existing_history = []
                 metadata = {}
 
-            # Load existing state if store exists
-            #if self.state_store:
-            #    state_data = self.state_store.get_state(session_id)
-            #    if state_data:
-            #        existing_history = state_data.history.copy()
-            #        metadata = {**state_data.metadata, **metadata}  # Merge metadata
 
             try:
 
@@ -327,11 +317,7 @@ class SmartA2A:
                     id=request.id,
                     error=MethodNotFoundError()
                 )
-            # Session initialization
-            #session_id = request.params.sessionId or str(uuid4())
-            #existing_history = []
-            #metadata = {}
-            #message = request.params.message
+            
             message = request.params.message
             if state_data:
                 session_id = state_data.sessionId
@@ -342,18 +328,16 @@ class SmartA2A:
                 existing_history = []
                 metadata = {}
 
-            # Load initial state if state store exists
-            #if self.state_store:
-            #    state_data = self.state_store.get_state(session_id)
-            #    if state_data:
-            #        existing_history = state_data.history.copy()
-            #        metadata = {**state_data.metadata, **metadata}  # Merge metadata
-
 
             async def event_generator():
                 
                 try:
-                    raw_events = handler(request, existing_history)
+                    
+                    if state_data:
+                        raw_events = handler(request, state_data)
+                    else:
+                        raw_events = handler(request)
+
                     normalized_events = self._normalize_subscription_events(request.params, raw_events)
 
                     # Initialize streaming state
