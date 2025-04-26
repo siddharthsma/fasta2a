@@ -15,7 +15,7 @@ class BaseStateStore(ABC):
         pass
     
     @abstractmethod
-    async def update_state(self, session_id: str, history: List[Message], metadata: Dict[str, Any]) -> None:
+    async def update_state(self, session_id: str, state_data: StateData) -> None:
         pass
     
     @abstractmethod

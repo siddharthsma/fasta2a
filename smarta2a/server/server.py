@@ -174,13 +174,14 @@ class SmartA2A:
             method = request_data.get("method")
             if method == "tasks/send":
                 if self.state_store:
-                    state_data = self._get_or_create_state_data(request_data.params.sessionId)
+                    state_data = self._get_or_create_state_data(request_data.get("params").get("sessionId"))
                     return self._handle_send_task(request_data, state_data)
                 else:
                     return self._handle_send_task(request_data)
             elif method == "tasks/sendSubscribe":
                 if self.state_store:
-                    state_data = self._get_or_create_state_data(request_data.params.sessionId)
+                    print(request_data.get("params").get("sessionId"))
+                    state_data = self._get_or_create_state_data(request_data.get("params").get("sessionId"))
                     return await self._handle_subscribe_task(request_data, state_data)
                 else:
                     return await self._handle_subscribe_task(request_data)
@@ -273,8 +274,11 @@ class SmartA2A:
                 if self.state_store:
                     self.state_store.update_state(
                         session_id=session_id,
-                        history=final_history,
-                        metadata=metadata  # Use merged metadata
+                        state_data=StateData(
+                            sessionId=session_id,
+                            history=final_history,
+                            metadata=metadata  # Use merged metadata
+                        )
                     )
 
                 return SendTaskResponse(
@@ -344,6 +348,11 @@ class SmartA2A:
                     stream_history = existing_history.copy()
                     stream_metadata = metadata.copy()
 
+                    stream_history = self.history_strategy.update_history(
+                        existing_history=stream_history,
+                        new_messages=[message]
+                    )
+
                     async for item in normalized_events:
                         try:
 
@@ -359,7 +368,7 @@ class SmartA2A:
                                 # Update history using strategy
                                 new_history = self.history_strategy.update_history(
                                     existing_history=stream_history,
-                                    new_messages=[message, agent_message]
+                                    new_messages=[agent_message]
                                 )
                                 
                                 # Merge metadata
@@ -372,8 +381,11 @@ class SmartA2A:
                                 if self.state_store:
                                     self.state_store.update_state(
                                         session_id=session_id,
-                                        history=new_history,
-                                        metadata=new_metadata
+                                        state_data=StateData(
+                                            sessionId=session_id,
+                                            history=new_history,
+                                            metadata=new_metadata
+                                        )
                                     )
 
                                 # Update streaming state
