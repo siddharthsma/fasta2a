@@ -222,10 +222,15 @@ class SmartA2A:
             #session_id = request.params.sessionId or str(uuid4())
             #existing_history = []
             #metadata = {}
-            session_id = state_data.sessionId or request.params.sessionId or str(uuid4())
             message = request.params.message
-            existing_history = state_data.history.copy() or []
-            metadata = state_data.metadata or {}
+            if state_data:
+                session_id = state_data.sessionId
+                existing_history = state_data.history.copy() or []
+                metadata = state_data.metadata or {}
+            else:
+                session_id = request.params.sessionId or str(uuid4())
+                existing_history = []
+                metadata = {}
 
             # Load existing state if store exists
             #if self.state_store:
@@ -327,10 +332,15 @@ class SmartA2A:
             #existing_history = []
             #metadata = {}
             #message = request.params.message
-            session_id = state_data.sessionId or request.params.sessionId or str(uuid4())
             message = request.params.message
-            existing_history = state_data.history.copy() or []
-            metadata = state_data.metadata or {}
+            if state_data:
+                session_id = state_data.sessionId
+                existing_history = state_data.history.copy() or []
+                metadata = state_data.metadata or {}
+            else:
+                session_id = request.params.sessionId or str(uuid4())
+                existing_history = []
+                metadata = {}
 
             # Load initial state if state store exists
             #if self.state_store:
