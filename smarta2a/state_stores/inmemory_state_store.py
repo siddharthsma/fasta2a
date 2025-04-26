@@ -9,8 +9,11 @@ class InMemoryStateStore(BaseStateStore):
     def __init__(self):
         self.states: Dict[str, StateData] = {}
     
-    def create_state(self) -> StateData:
-        return StateData(history=[], metadata={})
+    def create_state(self, session_id: Optional[str] = None) -> StateData:
+        if session_id:
+            return StateData(session_id=session_id, history=[], metadata={})
+        else:
+            return StateData(session_id=str(uuid.uuid4()), history=[], metadata={})
     
     def get_state(self, session_id: str) -> Optional[StateData]:
         return self.states.get(session_id)
