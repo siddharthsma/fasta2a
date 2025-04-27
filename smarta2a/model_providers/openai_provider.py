@@ -1,6 +1,6 @@
 # Library imports
 import json
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, List, Optional, Union
 from openai import AsyncOpenAI
 
 # Local imports
@@ -9,14 +9,15 @@ from smarta2a.model_providers.base_llm_provider import BaseLLMProvider
 
 
 class OpenAIProvider(BaseLLMProvider):
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
+    def __init__(self, api_key: str, model: str = "gpt-4o", system_prompt: Optional[str] = None):
         self.client = AsyncOpenAI(api_key=api_key)
         self.model = model
+        self.system_prompt = system_prompt
         self.supported_media_types = [
             "image/png", "image/jpeg", "image/gif", "image/webp"
         ]
 
-    def _convert_part(self, part: Part) -> dict:
+    def _convert_part(self, part: Union[TextPart, FilePart, DataPart]) -> dict:
         """Convert a single part to OpenAI-compatible format"""
         if isinstance(part, TextPart):
             return {"type": "text", "text": part.text}
@@ -39,7 +40,6 @@ class OpenAIProvider(BaseLLMProvider):
                 }
                 
         elif isinstance(part, DataPart):
-            # Convert structured data to JSON string
             return {
                 "type": "text",
                 "text": f"[Structured Data]\n{json.dumps(part.data, indent=2)}"
@@ -48,9 +48,17 @@ class OpenAIProvider(BaseLLMProvider):
         raise ValueError(f"Unsupported part type: {type(part)}")
 
     def _convert_messages(self, messages: List[Message]) -> List[dict]:
-        """Convert messages to OpenAI format with multimodal support"""
+        """Convert messages to OpenAI format with system prompt"""
         openai_messages = []
         
+        # Add system prompt if provided
+        if self.system_prompt:
+            openai_messages.append({
+                "role": "system",
+                "content": self.system_prompt
+            })
+        
+        # Process user-provided messages
         for msg in messages:
             role = "assistant" if msg.role == "agent" else msg.role
             content = []
@@ -60,7 +68,6 @@ class OpenAIProvider(BaseLLMProvider):
                     converted = self._convert_part(part)
                     content.append(converted)
                 except ValueError as e:
-                    # Handle unsupported parts
                     if isinstance(part, FilePart):
                         content.append({
                             "type": "text",
