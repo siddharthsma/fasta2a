@@ -1,21 +1,48 @@
 # Library imports
 import json
-from typing import AsyncGenerator, List, Optional, Union
+from typing import AsyncGenerator, List, Dict, Optional, Union, Any
 from openai import AsyncOpenAI
 
 # Local imports
-from smarta2a.common.types import Message, TextPart, FilePart, DataPart, Part
+from smarta2a.utils.types import Message, TextPart, FilePart, DataPart, Part
 from smarta2a.model_providers.base_llm_provider import BaseLLMProvider
-
+from smarta2a.utils.tools_manager import ToolsManager
 
 class OpenAIProvider(BaseLLMProvider):
-    def __init__(self, api_key: str, model: str = "gpt-4o", system_prompt: Optional[str] = None):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gpt-4o",
+        base_system_prompt: Optional[str] = None,
+        mcp_server_urls_or_paths: Optional[List[str]] = None,
+        discovery_strategy: Optional[DiscoveryStrategy] = None
+    ):
         self.client = AsyncOpenAI(api_key=api_key)
         self.model = model
-        self.system_prompt = system_prompt
+        # Store the base system prompt; will be enriched by tool descriptions
+        self.base_system_prompt = base_system_prompt
         self.supported_media_types = [
             "image/png", "image/jpeg", "image/gif", "image/webp"
         ]
+        # Initialize ToolsManager and load MCP tools if given
+        self.tools_manager = ToolsManager()
+        if mcp_server_urls_or_paths:
+            self.tools_manager.load_mcp_tools(mcp_server_urls_or_paths)
+        
+        if discovery_strategy:
+            self.tools_manager.load_strategy_tools(discovery_strategy)
+
+    
+    def _build_system_prompt(self) -> str:
+        """
+        Compose the final system prompt by combining the base prompt
+        with a clear listing of available tools.
+        """
+        header = self.base_system_prompt or "You are a helpful assistant with access to the following tools:"
+        tools_desc = self.tools_manager.describe_tools()
+        return f"{header}\n\nAvailable tools:\n{tools_desc}"
+    
+        
 
     def _convert_part(self, part: Union[TextPart, FilePart, DataPart]) -> dict:
         """Convert a single part to OpenAI-compatible format"""
@@ -47,6 +74,7 @@ class OpenAIProvider(BaseLLMProvider):
             
         raise ValueError(f"Unsupported part type: {type(part)}")
 
+
     def _convert_messages(self, messages: List[Message]) -> List[dict]:
         """Convert messages to OpenAI format with system prompt"""
         openai_messages = []
@@ -55,7 +83,7 @@ class OpenAIProvider(BaseLLMProvider):
         if self.system_prompt:
             openai_messages.append({
                 "role": "system",
-                "content": self.system_prompt
+                "content": self._build_system_prompt()
             })
         
         # Process user-provided messages
@@ -82,25 +110,171 @@ class OpenAIProvider(BaseLLMProvider):
             })
             
         return openai_messages
+    
+
+    def _format_openai_tools(self) -> List[dict]:
+        """
+        Convert internal tools metadata to OpenAI's function-call schema.
+        """
+        openai_tools = []
+        for tool in self.tools_manager.get_tools():
+            openai_tools.append({
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.input_schema
+                }
+            })
+        return openai_tools
+
 
     async def generate(self, messages: List[Message], **kwargs) -> str:
+        """
+        Generate a complete response, invoking tools as needed.
+        """
+        # Convert incoming messages with dynamic system prompt
         converted_messages = self._convert_messages(messages)
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=converted_messages,
-            **kwargs
-        )
-        return response.choices[0].message.content
+        max_iterations = 10
 
-    async def generate_stream(self, messages: List[Message], **kwargs) -> AsyncGenerator[str, None]:
+        for _ in range(max_iterations):
+            # Call OpenAI chat completion with available tools
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=converted_messages,
+                tools=self._format_openai_tools(),
+                **kwargs
+            )
+            message = response.choices[0].message
+
+            # If the assistant didn't call a tool, return its content
+            if not hasattr(message, 'tool_calls') or not message.tool_calls:
+                return message.content
+
+            # Append assistant's tool call to the conversation
+            converted_messages.append({
+                "role": "assistant",
+                "content": message.content,
+                "tool_calls": [
+                    {"id": tc.id,
+                     "type": "function",
+                     "function": {"name": tc.function.name,
+                                   "arguments": tc.function.arguments}
+                    }
+                    for tc in message.tool_calls
+                ]
+            })
+
+            # Process each tool call sequentially
+            for tc in message.tool_calls:
+                tool_name = tc.function.name
+                # Parse arguments
+                try:
+                    tool_args = json.loads(tc.function.arguments)
+                except json.JSONDecodeError:
+                    tool_args = {}
+
+                # Execute the tool via the ToolsManager
+                try:
+                    result = await self.tools_manager.call_tool(tool_name, tool_args)
+                    result_content = result.content
+                except Exception as e:
+                    result_content = f"Error executing {tool_name}: {e}"
+
+                # Append the tool response into the conversation
+                converted_messages.append({
+                    "role": "tool",
+                    "content": result_content,
+                    "tool_call_id": tc.id
+                })
+        # If max iterations reached without a final response
+        raise RuntimeError("Max tool iteration depth reached in generate().")
+
+
+
+    async def generate_stream(
+        self, messages: List[Message], **kwargs
+    ) -> AsyncGenerator[str, None]:
+        """
+        Stream response chunks, handling tool calls when complete.
+        """
+        # Prepare messages including dynamic system prompt
         converted_messages = self._convert_messages(messages)
-        stream = await self.client.chat.completions.create(
-            model=self.model,
-            messages=converted_messages,
-            stream=True,
-            **kwargs
-        )
-        async for chunk in stream:
-            content = chunk.choices[0].delta.content
-            if content:
-                yield content
+        max_iterations = 10
+
+        for _ in range(max_iterations):
+            # Start streaming completion with function-call support
+            stream = await self.client.chat.completions.create(
+                model=self.model,
+                messages=converted_messages,
+                tools=self._format_openai_tools(),
+                tool_choice="auto",
+                stream=True,
+                **kwargs
+            )
+
+            full_content = []
+            tool_calls: List[Dict[str, Any]] = []
+
+            # Collect streamed tokens and tool call deltas
+            async for chunk in stream:
+                delta = chunk.choices[0].delta
+                # Yield text content immediately
+                if hasattr(delta, 'content') and delta.content:
+                    full_content.append(delta.content)
+                    yield delta.content
+
+                # Accumulate tool call metadata
+                if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                    for d in delta.tool_calls:
+                        idx = d.index
+                        # Ensure sufficient list length
+                        while len(tool_calls) <= idx:
+                            tool_calls.append({"id": "", "function": {"name": "", "arguments": ""}})
+                        # Assign fields if present
+                        if d.id:
+                            tool_calls[idx]["id"] = d.id
+                        if d.function.name:
+                            tool_calls[idx]["function"]["name"] = d.function.name
+                        if d.function.arguments:
+                            tool_calls[idx]["function"]["arguments"] += d.function.arguments
+
+            # If no tool calls were invoked, stream is complete
+            if not tool_calls:
+                return
+
+            # Append completed assistant message with tool calls
+            converted_messages.append({
+                "role": "assistant",
+                "content": "".join(full_content),
+                "tool_calls": [
+                    {"id": tc["id"],
+                     "type": "function",
+                     "function": {"name": tc["function"]["name"],
+                                   "arguments": tc["function"]["arguments"]}
+                    }
+                    for tc in tool_calls
+                ]
+            })
+
+            # Execute each tool call and append responses
+            for tc in tool_calls:
+                name = tc["function"]["name"]
+                try:
+                    args = json.loads(tc["function"]["arguments"])
+                except json.JSONDecodeError:
+                    args = {}
+
+                try:
+                    result = await self.tools_manager.call_tool(name, args)
+                    result_content = result.content
+                except Exception as e:
+                    result_content = f"Error executing {name}: {e}"
+
+                converted_messages.append({
+                    "role": "tool",
+                    "content": result_content,
+                    "tool_call_id": tc["id"]
+                })
+        # If iterations exhausted without final completion
+        raise RuntimeError("Max tool iteration depth reached in generate_stream().")

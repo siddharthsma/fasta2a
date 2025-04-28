@@ -13,8 +13,8 @@ from uuid import uuid4
 from smarta2a.state_stores.base_state_store import BaseStateStore
 from smarta2a.history_update_strategies.history_update_strategy import HistoryUpdateStrategy
 from smarta2a.history_update_strategies.append_strategy import AppendStrategy
-from smarta2a.common.task_builder import TaskBuilder
-from smarta2a.common.types import (
+from smarta2a.utils.task_builder import TaskBuilder
+from smarta2a.utils.types import (
     JSONRPCResponse,
     Task,
     Artifact,

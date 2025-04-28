@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 
 # Local imports
-from smarta2a.common.types import StateData, Message
+from smarta2a.utils.types import StateData, Message
 
 class BaseStateStore(ABC):
     

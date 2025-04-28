@@ -5,7 +5,7 @@ import json
 from httpx_sse import connect_sse
 
 # Local imports
-from smarta2a.common.types import (
+from smarta2a.utils.types import (
     PushNotificationConfig,
     SendTaskStreamingResponse,
     SendTaskResponse,
@@ -21,7 +21,7 @@ from smarta2a.common.types import (
     SetTaskPushNotificationResponse,
     GetTaskPushNotificationResponse,
 )
-from smarta2a.common.task_request_builder import TaskRequestBuilder
+from smarta2a.utils.task_request_builder import TaskRequestBuilder
 
 
 class A2AClient:

@@ -3,7 +3,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 # Local imports
-from smarta2a.common.types import (
+from smarta2a.utils.types import (
     TaskPushNotificationConfig,
     PushNotificationConfig,
     TaskSendParams,

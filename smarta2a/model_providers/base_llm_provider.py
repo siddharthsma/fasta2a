@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import AsyncGenerator, List
 
 # Local imports
-from smarta2a.common.types import Message
+from smarta2a.utils.types import Message
 
 class BaseLLMProvider(ABC):
     @abstractmethod

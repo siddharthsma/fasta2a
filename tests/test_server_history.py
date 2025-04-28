@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 # Local imports
 from smarta2a.server import SmartA2A
-from smarta2a.common.types import (
+from smarta2a.utils.types import (
     Message, 
     StateData, 
     SendTaskRequest, 

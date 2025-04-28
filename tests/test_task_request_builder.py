@@ -1,6 +1,6 @@
 import pytest
 from uuid import UUID
-from smarta2a.common.types import (
+from smarta2a.utils.types import (
     TaskSendParams,
     Message,
     TextPart,
@@ -15,7 +15,7 @@ from smarta2a.common.types import (
     AuthenticationInfo,
     GetTaskPushNotificationRequest,
 )
-from smarta2a.common.task_request_builder import TaskRequestBuilder
+from smarta2a.utils.task_request_builder import TaskRequestBuilder
 
 class TestTaskRequestBuilder:
     def test_build_send_task_request_with_text(self):

@@ -3,7 +3,7 @@ import json
 import requests
 from fastapi.testclient import TestClient
 from smarta2a.server import SmartA2A
-from smarta2a.common.types import (
+from smarta2a.utils.types import (
     TaskSendParams,
     SendTaskRequest,
     GetTaskRequest,

@@ -6,7 +6,7 @@ from smarta2a.server import SmartA2A
 from smarta2a.model_providers.base_llm_provider import BaseLLMProvider
 from smarta2a.history_update_strategies.history_update_strategy import HistoryUpdateStrategy
 from smarta2a.state_stores.base_state_store import BaseStateStore
-from smarta2a.common.types import StateData, SendTaskRequest
+from smarta2a.utils.types import StateData, SendTaskRequest
 
 class A2AAgent:
     def __init__(
@@ -14,7 +14,7 @@ class A2AAgent:
             name: str,
             model_provider: BaseLLMProvider,
             history_update_strategy: HistoryUpdateStrategy,
-            state_storage: BaseStateStore
+            state_storage: BaseStateStore,
         ):
         self.model_provider = model_provider
         self.app = SmartA2A(

@@ -3,7 +3,7 @@ from typing import Protocol, List
 from typing import List
 
 # Local imports
-from smarta2a.common.types import Message
+from smarta2a.utils.types import Message
 
 class HistoryUpdateStrategy(Protocol):
     def update_history(

@@ -5,7 +5,7 @@ from typing import Any, List, Optional, Dict, Union
 from pydantic import ValidationError
 
 # Local imports
-from smarta2a.common.types import (
+from smarta2a.utils.types import (
     Task,
     TaskStatus,
     TaskState,
@@ -139,7 +139,7 @@ class TaskBuilder:
         return parts
 
     def _create_part(self, item: Any) -> Part:
-        from smarta2a.common.types import Part as UnionPart
+        from smarta2a.utils.types import Part as UnionPart
         # guard against Union alias
         if isinstance(item, (TextPart, FilePart, DataPart)):
             return item

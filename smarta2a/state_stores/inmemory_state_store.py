@@ -4,7 +4,7 @@ import uuid
 
 # Local imports
 from smarta2a.state_stores.base_state_store import BaseStateStore
-from smarta2a.common.types import StateData, Message
+from smarta2a.utils.types import StateData, Message
 
 class InMemoryStateStore(BaseStateStore):
     def __init__(self):
