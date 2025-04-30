@@ -77,6 +77,7 @@ def test_send_task(client, a2a_server):
 
     assert response.status_code == 200
     data = response.json()
+    print(data)
     assert data["id"] == "1"
     assert data["result"]["status"]["state"] == "completed"
     assert len(data["result"]["artifacts"]) == 1
@@ -467,13 +468,8 @@ def test_duplicate_on_send_task_registration():
             return "Second handler"
 
     # Verify error message
-    assert "can only be used once" in str(exc_info.value)
+    assert "already registered" in str(exc_info.value)
     assert "tasks/send" in str(exc_info.value)
-    assert "@on_send_task" in str(exc_info.value)
-
-    # Verify handler registry
-    assert app.handlers["tasks/send"] is handler1
-    assert "tasks/send" in app._registered_decorators
 
 
 def test_send_task_content_access():

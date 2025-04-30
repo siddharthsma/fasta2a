@@ -1,3 +1,4 @@
+# Library imports
 from typing import Callable, Any, Optional, Dict, Union, List, AsyncGenerator
 import json
 from datetime import datetime
@@ -10,10 +11,14 @@ import uvicorn
 from fastapi.responses import StreamingResponse
 from uuid import uuid4
 
+# Local imports
+from smarta2a.server.handler_registry import HandlerRegistry
+from smarta2a.server.state_manager import StateManager
 from smarta2a.state_stores.base_state_store import BaseStateStore
 from smarta2a.history_update_strategies.history_update_strategy import HistoryUpdateStrategy
 from smarta2a.history_update_strategies.append_strategy import AppendStrategy
 from smarta2a.utils.task_builder import TaskBuilder
+
 from smarta2a.utils.types import (
     JSONRPCResponse,
     Task,
@@ -61,11 +66,10 @@ from smarta2a.utils.types import (
 class SmartA2A:
     def __init__(self, name: str, state_store: Optional[BaseStateStore] = None, history_strategy: HistoryUpdateStrategy = AppendStrategy(), **fastapi_kwargs):
         self.name = name
-        self.handlers: Dict[str, Callable] = {}
-        self.subscriptions: Dict[str, Callable] = {}
+        self.registry = HandlerRegistry()
+        self.state_mgr = StateManager(state_store, history_strategy)
         self.app = FastAPI(title=name, **fastapi_kwargs)
         self.router = APIRouter()
-        self._registered_decorators = set()
         self.state_store = state_store
         self.history_strategy = history_strategy
         self._setup_routes()
@@ -76,24 +80,55 @@ class SmartA2A:
         }
         self.task_builder = TaskBuilder(default_status=TaskState.COMPLETED)
         
+      
+    def on_send_task(self):
+        def decorator(func: Callable[[SendTaskRequest, Optional[StateData]], Any]) -> Callable:
+            self.registry.register("tasks/send", func)
+            return func
+        return decorator
+    
+    def on_send_subscribe_task(self):
+        def decorator(fn: Callable[[SendTaskStreamingRequest, Optional[StateData]], Any]):
+            self.registry.register("tasks/sendSubscribe", fn, subscription=True)
+            return fn
+        return decorator
+    
+    def task_get(self):
+        def decorator(fn: Callable[[GetTaskRequest], Any]):
+            self.registry.register("tasks/get", fn)
+            return fn
+        return decorator
+
+    def task_cancel(self):
+        def decorator(fn: Callable[[CancelTaskRequest], Any]):
+            self.registry.register("tasks/cancel", fn)
+            return fn
+        return decorator
+
+    def set_notification(self):
+        def decorator(fn: Callable[[SetTaskPushNotificationRequest], Any]):
+            self.registry.register("tasks/pushNotification/set", fn)
+            return fn
+        return decorator
+
+    def get_notification(self):
+        def decorator(fn: Callable[[GetTaskPushNotificationRequest], Any]):
+            self.registry.register("tasks/pushNotification/get", fn)
+            return fn
+        return decorator
+    
 
     def _setup_routes(self):
         @self.app.post("/")    
         async def handle_request(request: Request):
             try:
                 data = await request.json()
-                request_obj = JSONRPCRequest(**data)
+                req = JSONRPCRequest.model_validate(data)
+                #request_obj = JSONRPCRequest(**data)
             except Exception as e:
-                return JSONRPCResponse(
-                    id=None,
-                    error=JSONRPCError(
-                        code=-32700,
-                        message="Parse error",
-                        data=str(e)
-                    )
-                ).model_dump()
-            
-            response = await self.process_request(request_obj.model_dump())
+                return JSONRPCResponse(id=None, error=JSONRPCError(code=-32700, message="Parse error", data=str(e))).model_dump()
+                
+            response = await self.process_request(req)
 
             # <-- Accept both SSE‐style responses:
             if isinstance(response, (EventSourceResponse, StreamingResponse)):
@@ -101,119 +136,48 @@ class SmartA2A:
 
             # <-- Everything else is a normal pydantic JSONRPCResponse
             return response.model_dump()
+    
 
-    def _register_handler(self, method: str, func: Callable, handler_name: str, handler_type: str = "handler"):
-        """Shared registration logic with duplicate checking"""
-        if method in self._registered_decorators:
-            raise RuntimeError(
-                f"@{handler_name} decorator for method '{method}' "
-                f"can only be used once per SmartA2A instance"
-            )
+    async def process_request(self, request: JSONRPCRequest) -> JSONRPCResponse:
         
-        if handler_type == "handler":
-            self.handlers[method] = func
-        else:
-            self.subscriptions[method] = func
-            
-        self._registered_decorators.add(method)
-
-    def on_send_task(self) -> Callable:
-        def decorator(func: Callable[[SendTaskRequest, Optional[StateData]], Any]) -> Callable:
-            self._register_handler("tasks/send", func, "on_send_task", "handler")
-            return func
-        return decorator
-
-    def on_send_subscribe_task(self) -> Callable:
-        def decorator(func: Callable[[SendTaskStreamingRequest, Optional[StateData]], Any]) -> Callable:
-            self._register_handler("tasks/sendSubscribe", func, "on_send_subscribe_task", "subscription")
-            return func
-        return decorator
-    
-    def task_get(self):
-        def decorator(func: Callable[[GetTaskRequest], Task]):
-            self._register_handler("tasks/get", func, "task_get", "handler")
-            return func
-        return decorator
-    
-    def task_cancel(self):
-        def decorator(func: Callable[[CancelTaskRequest], Task]):
-            self._register_handler("tasks/cancel", func, "task_cancel", "handler")
-            return func
-        return decorator
-    
-    def set_notification(self):
-        def decorator(func: Callable[[SetTaskPushNotificationRequest], None]) -> Callable:
-            self._register_handler("tasks/pushNotification/set", func, "set_notification", "handler")
-            return func
-        return decorator
-    
-    def get_notification(self):
-        def decorator(func: Callable[[GetTaskPushNotificationRequest], Union[TaskPushNotificationConfig, GetTaskPushNotificationResponse]]):
-            self._register_handler("tasks/pushNotification/get", func, "get_notification", "handler")
-            return func
-        return decorator
-    
-    def _get_or_create_state_data(self, session_id: str, user_message: Message, metadata: Dict[str, Any]) -> StateData:
-        metadata = metadata or {}
-
-        if not session_id:
-            session_id = str(uuid4())
-            state_data = StateData(sessionId=session_id, history=[], metadata={})
-        else:
-            state_data = self.state_store.get_state(session_id)
-            if not state_data:
-                state_data = StateData(sessionId=session_id, history=[], metadata={})
-
-        state_data.history.append(user_message)
-        if state_data.metadata is None:
-            state_data.metadata = {}
-        state_data.metadata.update(metadata)
-
-        self.state_store.update_state(session_id, state_data)
-        return state_data
-
-    async def process_request(self, request_data: dict) -> JSONRPCResponse:
         try:
-            method = request_data.get("method")
+            method = request.method
+            params = request.params
+            state_store = self.state_mgr.get_store()
             if method == "tasks/send":
-                if self.state_store:
-                    state_data = self._get_or_create_state_data(request_data.get("params").get("sessionId"), request_data.get("params").get("message"), request_data.get("params").get("metadata"))
-                    return self._handle_send_task(request_data, state_data)
+                state_data = self.state_mgr.init_or_get(params.get("sessionId"), params.get("message"), params.get("metadata") or {})
+                if state_store:
+                    return self._handle_send_task(request, state_data)
                 else:
-                    return self._handle_send_task(request_data)
+                    return self._handle_send_task(request)
             elif method == "tasks/sendSubscribe":
-                if self.state_store:
-                    state_data = self._get_or_create_state_data(request_data.get("params").get("sessionId"), request_data.get("params").get("message"), request_data.get("params").get("metadata"))
-                    return await self._handle_subscribe_task(request_data, state_data)
+                state_data = self.state_mgr.init_or_get(params.get("sessionId"), params.get("message"), params.get("metadata") or {})
+                if state_store:
+                    return await self._handle_subscribe_task(request, state_data)
                 else:
-                    return await self._handle_subscribe_task(request_data)
+                    return await self._handle_subscribe_task(request)
             elif method == "tasks/get":
-                return self._handle_get_task(request_data)
+                return self._handle_get_task(request)
             elif method == "tasks/cancel":
-                return self._handle_cancel_task(request_data)
+                return self._handle_cancel_task(request)
             elif method == "tasks/pushNotification/set":
-                return self._handle_set_notification(request_data)
+                return self._handle_set_notification(request)
             elif method == "tasks/pushNotification/get":
-                return self._handle_get_notification(request_data)
+                return self._handle_get_notification(request)
             else:
-                return self._error_response(
-                    request_data.get("id"),
-                    -32601,
-                    "Method not found"
-                )
+                return JSONRPCResponse(id=request.id, error=MethodNotFoundError()).model_dump() 
         except ValidationError as e:
-            return self._error_response(
-                request_data.get("id"),
-                -32600,
-                "Invalid params",
-                e.errors()
-            )
+                return JSONRPCResponse(id=request.id, error=InvalidParamsError(data=e.errors())).model_dump()
+        except HTTPException as e:
+            err = UnsupportedOperationError() if e.status_code == 405 else InternalError(data=str(e))
+            return JSONRPCResponse(id=request.id, error=err).model_dump()
 
-    def _handle_send_task(self, request_data: dict, state_data: Optional[StateData] = None) -> SendTaskResponse:
+
+    def _handle_send_task(self, request_data: JSONRPCRequest, state_data: Optional[StateData] = None) -> SendTaskResponse:
         try:
             # Validate request format
-            request = SendTaskRequest.model_validate(request_data)
-            handler = self.handlers.get("tasks/send")
+            request = SendTaskRequest.model_validate(request_data.model_dump())
+            handler = self.registry.get_handler("tasks/send")
             
             if not handler:
                 return SendTaskResponse(
@@ -312,10 +276,11 @@ class SmartA2A:
             )
 
         
-    async def _handle_subscribe_task(self, request_data: dict, state_data: Optional[StateData] = None) -> Union[EventSourceResponse, SendTaskStreamingResponse]:
+    async def _handle_subscribe_task(self, request_data: JSONRPCRequest, state_data: Optional[StateData] = None) -> Union[EventSourceResponse, SendTaskStreamingResponse]:
         try:
-            request = SendTaskStreamingRequest.model_validate(request_data)
-            handler = self.subscriptions.get("tasks/sendSubscribe")
+            request = SendTaskStreamingRequest.model_validate(request_data.model_dump())
+            #handler = self.subscriptions.get("tasks/sendSubscribe")
+            handler = self.registry.get_subscription("tasks/sendSubscribe")
             
             if not handler:
                 return SendTaskStreamingResponse(
@@ -460,11 +425,11 @@ class SmartA2A:
             )
 
 
-    def _handle_get_task(self, request_data: dict) -> GetTaskResponse:
+    def _handle_get_task(self, request_data: JSONRPCRequest) -> GetTaskResponse:
         try:
             # Validate request structure
-            request = GetTaskRequest.model_validate(request_data)
-            handler = self.handlers.get("tasks/get")
+            request = GetTaskRequest.model_validate(request_data.model_dump())
+            handler = self.registry.get_handler("tasks/get")
             
             if not handler:
                 return GetTaskResponse(
@@ -511,11 +476,11 @@ class SmartA2A:
             )
         
 
-    def _handle_cancel_task(self, request_data: dict) -> CancelTaskResponse:
+    def _handle_cancel_task(self, request_data: JSONRPCRequest) -> CancelTaskResponse:
         try:
             # Validate request structure
-            request = CancelTaskRequest.model_validate(request_data)
-            handler = self.handlers.get("tasks/cancel")
+            request = CancelTaskRequest.model_validate(request_data.model_dump())
+            handler = self.registry.get_handler("tasks/cancel")
             
             if not handler:
                 return CancelTaskResponse(
@@ -581,10 +546,10 @@ class SmartA2A:
                 error=InternalError(data=str(e))
             )
 
-    def _handle_set_notification(self, request_data: dict) -> SetTaskPushNotificationResponse:
+    def _handle_set_notification(self, request_data: JSONRPCRequest) -> SetTaskPushNotificationResponse:
         try:
-            request = SetTaskPushNotificationRequest.model_validate(request_data)
-            handler = self.handlers.get("tasks/pushNotification/set")
+            request = SetTaskPushNotificationRequest.model_validate(request_data.model_dump())
+            handler = self.registry.get_handler("tasks/pushNotification/set")
             
             if not handler:
                 return SetTaskPushNotificationResponse(
@@ -626,10 +591,10 @@ class SmartA2A:
             )
                       
 
-    def _handle_get_notification(self, request_data: dict) -> GetTaskPushNotificationResponse:
+    def _handle_get_notification(self, request_data: JSONRPCRequest) -> GetTaskPushNotificationResponse:
         try:
-            request = GetTaskPushNotificationRequest.model_validate(request_data)
-            handler = self.handlers.get("tasks/pushNotification/get")
+            request = GetTaskPushNotificationRequest.model_validate(request_data.model_dump())
+            handler = self.registry.get_handler("tasks/pushNotification/get")
             
             if not handler:
                 return GetTaskPushNotificationResponse(
