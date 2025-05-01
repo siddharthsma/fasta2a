@@ -357,6 +357,59 @@ class AgentCard(BaseModel):
     defaultOutputModes: List[str] = ["text"]
     skills: List[AgentSkill]
 
+    def pretty_print(self, include_separators: bool = False) -> str:
+        """Returns formatted string, optionally wrapped in separators"""
+        output = []
+        output.append(f"Name: {self.name}")
+        
+        if self.description:
+            output.append(f"Description: {self.description}")
+            
+        output.append(f"URL: {self.url}")
+        
+        if self.provider:
+            output.append(f"Provider Organization: {self.provider.organization}")
+
+        # Capabilities handling
+        capabilities = []
+        if self.capabilities.streaming:
+            capabilities.append("Streaming")
+        if self.capabilities.pushNotifications:
+            capabilities.append("Push Notifications")
+        if self.capabilities.stateTransitionHistory:
+            capabilities.append("State Transition History")
+        output.append("Capabilities: " + ", ".join(capabilities))
+        
+        # Skills handling
+        skills_output = ["Skills:"]
+        for skill in self.skills:
+            skills_output.append(f"  {skill.name} [{skill.id}]")
+            
+            if skill.description:
+                skills_output.append(f"    Description: {skill.description}")
+                
+            if skill.tags:
+                skills_output.append(f"    Tags: {', '.join(skill.tags)}")
+                
+            if skill.examples:
+                skills_output.append("    Examples:")
+                skills_output.extend([f"      - {ex}" for ex in skill.examples])
+                
+            if skill.inputModes:
+                skills_output.append(f"    Input Modes: {', '.join(skill.inputModes)}")
+                
+            if skill.outputModes:
+                skills_output.append(f"    Output Modes: {', '.join(skill.outputModes)}")
+                
+            skills_output.append("")
+
+        output.extend(skills_output)
+        result = "\n".join(output).strip()
+        
+        if include_separators:
+            return f"---\n{result}\n---"
+        return result
+
 
 class A2AClientError(Exception):
     pass

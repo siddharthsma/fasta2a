@@ -1,8 +1,10 @@
 # Library imports
-from typing import Any, Literal, AsyncIterable
+from typing import Any, Literal, AsyncIterable, get_origin, get_args
 import httpx
 import json
 from httpx_sse import connect_sse
+from inspect import signature, Parameter, iscoroutinefunction
+from pydantic import create_model, Field, BaseModel
 
 # Local imports
 from smarta2a.utils.types import (
@@ -47,6 +49,7 @@ class A2AClient:
         history_length: int | None = None,
         metadata: dict[str, Any] | None = None,
     ):
+        """Send a task to another Agent"""
         params = TaskRequestBuilder.build_send_task_request(
             id=id,
             role=role,
@@ -76,6 +79,7 @@ class A2AClient:
         history_length: int | None = None,
         metadata: dict[str, Any] | None = None,
     ):
+        """Send to another Agent and receive a stream of responses"""
         params = TaskRequestBuilder.build_send_task_request(
             id=id,
             role=role,
@@ -108,6 +112,7 @@ class A2AClient:
         history_length: int | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> GetTaskResponse:
+        """Get a task from another Agent"""
         req = TaskRequestBuilder.get_task(id, history_length, metadata)
         raw = await self._send_request(req)
         return GetTaskResponse(**raw)
@@ -118,6 +123,7 @@ class A2AClient:
         id: str,
         metadata: dict[str, Any] | None = None,
     ) -> CancelTaskResponse:
+        """Cancel a task from another Agent"""
         req = TaskRequestBuilder.cancel_task(id, metadata)
         raw = await self._send_request(req)
         return CancelTaskResponse(**raw)
@@ -130,6 +136,7 @@ class A2AClient:
         token: str | None = None,
         authentication: AuthenticationInfo | dict[str, Any] | None = None,
     ) -> SetTaskPushNotificationResponse:
+        """Set a push notification for a task"""
         req = TaskRequestBuilder.set_push_notification(id, url, token, authentication)
         raw = await self._send_request(req)
         return SetTaskPushNotificationResponse(**raw)
@@ -140,6 +147,7 @@ class A2AClient:
         id: str,
         metadata: dict[str, Any] | None = None,
     ) -> GetTaskPushNotificationResponse:
+        """Get a push notification for a task"""
         req = TaskRequestBuilder.get_push_notification(id, metadata)
         raw = await self._send_request(req)
         return GetTaskPushNotificationResponse(**raw)
@@ -171,3 +179,89 @@ class A2AClient:
                         raise A2AClientJSONError(str(e)) from e
                     except httpx.RequestError as e:
                         raise A2AClientHTTPError(400, str(e)) from e
+    
+
+    def list_tools(self) -> list[dict[str, Any]]:
+        """Return metadata for all available tools."""
+        tools = []
+        tool_names = [
+            'send'
+        ]
+        for name in tool_names:
+            method = getattr(self, name)
+            doc = method.__doc__ or ""
+            description = doc.strip().split('\n')[0] if doc else ""
+            
+            # Generate input schema
+            sig = signature(method)
+            parameters = sig.parameters
+            
+            fields = {}
+            required = []
+            for param_name, param in parameters.items():
+                if param_name == 'self':
+                    continue
+                annotation = param.annotation
+                if annotation is Parameter.empty:
+                    annotation = Any
+                # Handle Literal types
+                if get_origin(annotation) is Literal:
+                    enum_values = get_args(annotation)
+                    annotation = Literal.__getitem__(enum_values)
+                # Handle default
+                default = param.default
+                if default is Parameter.empty:
+                    required.append(param_name)
+                    field = Field(...)
+                else:
+                    field = Field(default=default)
+                fields[param_name] = (annotation, field)
+            
+            # Create dynamic Pydantic model
+            model = create_model(f"{name}_Input", **fields)
+            schema = model.schema()
+            
+            tools.append({
+                'name': name,
+                'description': description,
+                'input_schema': schema
+            })
+        return tools
+
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
+        """Call a tool by name with validated arguments."""
+        if not hasattr(self, tool_name):
+            raise ValueError(f"Tool {tool_name} not found")
+        method = getattr(self, tool_name)
+        
+        # Validate arguments using the same schema as list_tools
+        sig = signature(method)
+        parameters = sig.parameters
+        
+        fields = {}
+        for param_name, param in parameters.items():
+            if param_name == 'self':
+                continue
+            annotation = param.annotation
+            if annotation is Parameter.empty:
+                annotation = Any
+            # Handle Literal
+            if get_origin(annotation) is Literal:
+                enum_values = get_args(annotation)
+                annotation = Literal.__getitem__(enum_values)
+            default = param.default
+            if default is Parameter.empty:
+                fields[param_name] = (annotation, Field(...))
+            else:
+                fields[param_name] = (annotation, Field(default=default))
+        
+        # Create validation model
+        model = create_model(f"{tool_name}_ValidationModel", **fields)
+        validated_args = model(**arguments).dict()
+        
+        # Call the method
+        if iscoroutinefunction(method):
+            return await method(**validated_args)
+        else:
+            # Note: Synchronous methods (like subscribe) will block the event loop
+            return method(**validated_args)

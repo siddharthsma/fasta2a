@@ -4,9 +4,10 @@ from typing import AsyncGenerator, List, Dict, Optional, Union, Any
 from openai import AsyncOpenAI
 
 # Local imports
-from smarta2a.utils.types import Message, TextPart, FilePart, DataPart, Part
+from smarta2a.utils.types import Message, TextPart, FilePart, DataPart, Part, AgentCard
 from smarta2a.model_providers.base_llm_provider import BaseLLMProvider
-from smarta2a.utils.tools_manager import ToolsManager
+from smarta2a.client.tools_manager import ToolsManager
+from smarta2a.utils.prompt_helpers import build_system_prompt
 
 class OpenAIProvider(BaseLLMProvider):
     def __init__(
@@ -15,10 +16,13 @@ class OpenAIProvider(BaseLLMProvider):
         model: str = "gpt-4o",
         base_system_prompt: Optional[str] = None,
         mcp_server_urls_or_paths: Optional[List[str]] = None,
-        discovery_strategy: Optional[DiscoveryStrategy] = None
+        agent_cards: Optional[List[AgentCard]] = None,
+        # enable_discovery: bool = False
     ):
         self.client = AsyncOpenAI(api_key=api_key)
         self.model = model
+        self.mcp_server_urls_or_paths = mcp_server_urls_or_paths
+        self.agent_cards = agent_cards
         # Store the base system prompt; will be enriched by tool descriptions
         self.base_system_prompt = base_system_prompt
         self.supported_media_types = [
@@ -29,21 +33,18 @@ class OpenAIProvider(BaseLLMProvider):
         if mcp_server_urls_or_paths:
             self.tools_manager.load_mcp_tools(mcp_server_urls_or_paths)
         
-        if discovery_strategy:
-            self.tools_manager.load_strategy_tools(discovery_strategy)
+        if agent_cards:
+            self.tools_manager.load_a2a_tools(agent_cards)
 
-    
     def _build_system_prompt(self) -> str:
-        """
-        Compose the final system prompt by combining the base prompt
-        with a clear listing of available tools.
-        """
-        header = self.base_system_prompt or "You are a helpful assistant with access to the following tools:"
-        tools_desc = self.tools_manager.describe_tools()
-        return f"{header}\n\nAvailable tools:\n{tools_desc}"
+        """Get the system prompt with tool descriptions."""
+        return build_system_prompt(
+            self.base_system_prompt,
+            self.tools_manager,
+            self.mcp_server_urls_or_paths,
+            self.agent_cards
+        )
     
-        
-
     def _convert_part(self, part: Union[TextPart, FilePart, DataPart]) -> dict:
         """Convert a single part to OpenAI-compatible format"""
         if isinstance(part, TextPart):
