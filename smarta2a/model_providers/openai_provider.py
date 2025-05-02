@@ -137,13 +137,13 @@ class OpenAIProvider(BaseLLMProvider):
         """
         Generate a complete response, invoking tools as needed.
         """
-        # Turn messages from list of dicts to list of Message objects
+        # Ensure messages are Message objects
         messages = [msg if isinstance(msg, Message) else Message(**msg) for msg in messages]
-        # Convert incoming messages with dynamic system prompt
         converted_messages = self._convert_messages(messages)
         max_iterations = 10
 
-        for _ in range(max_iterations):
+        for iteration in range(max_iterations):
+            print(f"Iteration {iteration+1}/{max_iterations}")
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=converted_messages,
@@ -151,42 +151,56 @@ class OpenAIProvider(BaseLLMProvider):
                 **kwargs
             )
             message = response.choices[0].message
-            print(">>> got back:", message)
+            print("got back:", message)
 
-            # If there's no function_call, we're done.
-            if message.function_call is None:
+            # If there's no function_call, return the content
+            if not getattr(message, 'function_call', None):
+                print("No function call, returning assistant content.")
                 return message.content
 
-            # 1) Add the assistant’s function‐call intent to the convo
+            # Log and append the assistant's function_call intent
+            fc = message.function_call
+            print(f"→ About to call tool '{fc.name}' with args {fc.arguments}")
             converted_messages.append({
                 "role": "assistant",
                 "content": None,
                 "function_call": {
-                    "name": message.function_call.name,
-                    "arguments": message.function_call.arguments
+                    "name": fc.name,
+                    "arguments": fc.arguments
                 }
             })
 
-            # 2) Actually invoke your tool
-            func_name = message.function_call.name
-            func_args = json.loads(message.function_call.arguments or "{}")
+            # Parse arguments safely
             try:
-                tool_result = await self.tools_manager.call_tool(func_name, func_args)
+                tool_args = json.loads(fc.arguments or '{}')
+            except json.JSONDecodeError as jde:
+                print(f"❗ JSON decode error for arguments: {jde}")
+                tool_args = {}
+
+            # Call the tool and capture result
+            try:
+                tool_result = await self.tools_manager.call_tool(fc.name, tool_args)
+                print("✅ tool call returned:", tool_result)
             except Exception as e:
-                tool_result = {"content": f"Error calling {func_name}: {e}"}
+                print(f"❗ exception in call_tool '{fc.name}': {e}")
+                tool_result = {"content": f"Error calling {fc.name}: {e}"}
 
-            # Debug: inspect what comes back
-            print(">>> raw tool result:", tool_result)
+            # Extract content robustly
+            if hasattr(tool_result, 'content'):
+                result_content = tool_result.content
+            elif isinstance(tool_result, dict) and 'content' in tool_result:
+                result_content = tool_result['content']
+            else:
+                result_content = str(tool_result)
 
-            # 3) Append the function’s response into the convo
-            #    (OpenAI expects role="function" and name=the function name)
+            # Append the function's response into the conversation
             converted_messages.append({
                 "role": "function",
-                "name": func_name,
-                "content": tool_result.get("content", str(tool_result))
+                "name": fc.name,
+                "content": result_content
             })
 
-            # and then loop again to get the final answer…
+        # If we exhaust max_iterations without a terminal response
         raise RuntimeError("Max tool iteration depth reached in generate().")
 
 
