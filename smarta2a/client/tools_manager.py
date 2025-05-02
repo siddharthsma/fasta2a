@@ -16,19 +16,21 @@ class ToolsManager:
         self.tools_list: List[Any] = []
         self.clients: Dict[str, Union[MCPClient, A2AClient]] = {}
 
-    def load_mcp_tools(self, urls_or_paths: List[str]) -> None:
+    async def load_mcp_tools(self, urls_or_paths: List[str]) -> None:
         for url in urls_or_paths:
             mcp_client = MCPClient(url)
-            for tool in mcp_client.list_tools():
+            tools = await mcp_client.list_tools()
+            for tool in tools:
                 self.tools_list.append(tool)
                 self.clients[tool.name] = mcp_client
 
-    def load_a2a_tools(self, agent_cards: List[AgentCard]) -> None:
+    async def load_a2a_tools(self, agent_cards: List[AgentCard]) -> None:
         for agent_card in agent_cards:
             a2a_client = A2AClient(agent_card)
-            for tool in a2a_client.list_tools():
+            tools = await a2a_client.list_tools()
+            for tool in tools:
                 self.tools_list.append(tool)
-            self.clients[tool.name] = a2a_client
+                self.clients[tool.name] = a2a_client
 
     def get_tools(self) -> List[Any]:
         return self.tools_list

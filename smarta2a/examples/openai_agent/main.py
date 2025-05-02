@@ -13,9 +13,10 @@ load_dotenv()
 # Fetch the value using os.getenv
 api_key = os.getenv("OPENAI_API_KEY")
 
-openai_provider = OpenAIProvider(
+openai_provider = OpenAIProvider.create(
     api_key=api_key,
     model="gpt-4o-mini",
+    mcp_server_urls_or_paths=["/Users/apple/Desktop/Code/weather/weather.py"],
 )
 
 agent = A2AAgent(

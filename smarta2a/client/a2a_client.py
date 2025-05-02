@@ -181,7 +181,7 @@ class A2AClient:
                         raise A2AClientHTTPError(400, str(e)) from e
     
 
-    def list_tools(self) -> list[dict[str, Any]]:
+    async def list_tools(self) -> list[dict[str, Any]]:
         """Return metadata for all available tools."""
         tools = []
         tool_names = [
