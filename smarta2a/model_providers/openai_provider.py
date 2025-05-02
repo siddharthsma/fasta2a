@@ -87,6 +87,7 @@ class OpenAIProvider(BaseLLMProvider):
         })
         
         # Process user-provided messages
+        print(messages)
         for msg in messages:
             role = "assistant" if msg.role == "agent" else msg.role
             content = []
