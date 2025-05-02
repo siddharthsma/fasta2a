@@ -224,7 +224,7 @@ class A2AClient:
             tools.append({
                 'name': name,
                 'description': description,
-                'input_schema': schema
+                'inputSchema': schema
             })
         return tools
 

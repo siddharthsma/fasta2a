@@ -39,7 +39,6 @@ class ToolsManager:
     def describe_tools(self, client_type: Literal["mcp", "a2a"]) -> str:
         lines = []
         for tool in self.tools_list:
-            print(f"Type: {type(tool)}, Attributes: {dir(tool)}")
             schema = json.dumps(tool.inputSchema, indent=2)  # Fix: use inputSchema
             if client_type == "mcp":
                 lines.append(
