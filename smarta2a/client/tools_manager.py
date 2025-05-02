@@ -39,15 +39,10 @@ class ToolsManager:
     def describe_tools(self, client_type: Literal["mcp", "a2a"]) -> str:
         lines = []
         for tool in self.tools_list:
-            if client_type == "mcp" and isinstance(tool, MCPClient):
-                schema = json.dumps(tool.input_schema, indent=2)
-                lines.append(
-                    f"- **{tool.name}**: {tool.description}\n  Parameters schema:\n  ```json\n{schema}\n```"
-                )
-            elif client_type == "a2a" and isinstance(tool, A2AClient):
-                lines.append(
-                    f"- **{tool.name}**: {tool.description} Parameters schema:\n  ```json\n{schema}\n```"
-                )
+            schema = json.dumps(tool.get("input_schema", {}), indent=2)
+            lines.append(
+                f"- **{tool.get('name')}**: {tool.get('description', '')}\n  Parameters schema:\n  ```json\n{schema}\n```"
+            )
         return "\n".join(lines)
 
     def get_client(self, tool_name: str) -> Any:
