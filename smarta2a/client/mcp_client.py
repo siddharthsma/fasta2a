@@ -1,7 +1,9 @@
 # Library imports
 import re
 from contextlib import AsyncExitStack
-from mcp.client import ClientSession, sse_client, stdio_client, StdioServerParameters
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+from mcp.client.sse import sse_client
 
 
 class MCPClient:
