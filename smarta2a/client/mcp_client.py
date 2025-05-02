@@ -81,7 +81,7 @@ class MCPClient:
     
     async def call_tool(self, tool_name: str, **tool_args):
         """Call a tool."""
-        response = await self.session.call_tool(tool_name, **tool_args)
+        response = await self.session.call_tool(tool_name, tool_args)
         return response.content
 
     async def cleanup(self):

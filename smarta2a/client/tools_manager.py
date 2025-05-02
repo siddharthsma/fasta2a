@@ -58,4 +58,4 @@ class ToolsManager:
         client = self.get_client(tool_name)
         if not client:
             raise ValueError(f"Tool not found: {tool_name}")
-        return await client.call_tool(tool_name, **args)
+        return await client.call_tool(tool_name, args)
