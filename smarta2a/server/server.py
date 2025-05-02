@@ -79,8 +79,11 @@ class SmartA2A:
             "reload": False
         }
         self.task_builder = TaskBuilder(default_status=TaskState.COMPLETED)
+
+    # Add this method to delegate ASGI calls
+    async def __call__(self, scope, receive, send):
+        return await self.app(scope, receive, send)
         
-      
     def on_send_task(self):
         def decorator(func: Callable[[SendTaskRequest, Optional[StateData]], Any]) -> Callable:
             self.registry.register("tasks/send", func)
@@ -447,7 +450,7 @@ class SmartA2A:
                 task = self.task_builder.build(
                     content=raw_result,
                     task_id=request.params.id,
-                    metadata=request.params.metadata or {}
+                    metadata=getattr(raw_result, "metadata", {}) or {}
                 )
 
                 return self._finalize_task_response(request, task)
@@ -491,24 +494,26 @@ class SmartA2A:
             try:
                 raw_result = handler(request)
             
+                cancel_task_builder = TaskBuilder(default_status=TaskState.CANCELED)
                 # Handle direct CancelTaskResponse returns
                 if isinstance(raw_result, CancelTaskResponse):
                     return self._validate_response_id(raw_result, request)
 
                 # Handle A2AStatus returns
                 if isinstance(raw_result, A2AStatus):
-                    task = self.task_builder.normalize_from_status(
+                    task = cancel_task_builder.normalize_from_status(
                         status=raw_result.status,
                         task_id=request.params.id,
-                        metadata=raw_result.metadata or {}
+                        metadata=getattr(raw_result, "metadata", {}) or {}
                     )
                 else:
                     # Existing processing for other return types
-                    task = self.task_builder.build(
+                    task = cancel_task_builder.build(
                         content=raw_result,
                         task_id=request.params.id,
-                        metadata=raw_result.metadata or {}
+                        metadata=getattr(raw_result, "metadata", {}) or {}
                     )
+                    print(task)
 
                 # Final validation and packaging
                 return self._finalize_cancel_response(request, task)

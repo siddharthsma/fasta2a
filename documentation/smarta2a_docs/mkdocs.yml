@@ -1,0 +1,21 @@
+site_name: SmartA2A
+theme:
+  name: material
+  features:
+    - navigation.tabs  # Enables top nav tabs
+    - navigation.sections
+    - toc.integrate    # Integrates the TOC into the sidebar (optional)
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Introduction: getting-started/index.md
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+  - Tutorials:
+      - Tutorials: tutorials/echo_server.md
+  - Blog:
+      - Announcements: blog/announcements.md
+      - Changelog: blog/changelog.md
+  - Community: community.md
+

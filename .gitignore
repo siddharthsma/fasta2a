@@ -103,3 +103,6 @@ venv.bak/
 .vscode/
 *.swp
 *.swo 
+
+# Apple
+.DS_Store

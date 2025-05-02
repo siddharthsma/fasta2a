@@ -1,0 +1,1 @@
+curl -X POST -H "Content-Type: application/json" -d '{ "jsonrpc": "2.0", "id": 1, "method": “tasks/send”, "params": {"id": "test-task-1","message": {"role": "user","parts": [{"type": "text", "text": "Test message"}]}} }' http://localhost:8000/
