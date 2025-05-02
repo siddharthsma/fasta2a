@@ -155,48 +155,41 @@ class OpenAIProvider(BaseLLMProvider):
 
             # Detect and extract the tool/function call
             if getattr(message, 'function_call', None):
-                tool_call_obj = message.function_call
-                fc_name = tool_call_obj.name
-                print(f"→ Extracted function_call for '{fc_name}'")
-                # Append assistant's intent to call the function
-                converted_messages.append({
-                    "role": "assistant",
-                    "content": None,
-                    "function_call": {
-                        "name": tool_call_obj.name,
-                        "arguments": tool_call_obj.arguments
-                    }
-                })
-                call_arg = tool_call_obj
+                name = message.function_call.name
+                args_raw = message.function_call.arguments
             elif getattr(message, 'tool_calls', None):
                 tc = message.tool_calls[0]
-                fc_name = tc.function.name
-                print(f"→ Extracted legacy tool_call for '{fc_name}'")
-                # Append assistant's intent to call the tool
-                converted_messages.append({
-                    "role": "assistant",
-                    "content": None,
-                    "function_call": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments
-                    }
-                })
-                call_arg = tc
+                name = tc.function.name
+                args_raw = tc.function.arguments
             else:
-                # No tool call; return the model's content
                 print("No function/tool call, returning assistant content.")
                 return message.content
 
-            # Invoke the tool manager with the raw call object
+            # Log and append the assistant's intent
+            print(f"→ About to call tool '{name}' with args {args_raw}")
+            converted_messages.append({
+                "role": "assistant",
+                "content": None,
+                "function_call": {"name": name, "arguments": args_raw}
+            })
+
+            # Parse arguments safely
             try:
-                print(f"Calling tool manager for '{fc_name}'...")
-                tool_result = await self.tools_manager.call_tool(call_arg)
+                args = json.loads(args_raw or '{}')
+            except json.JSONDecodeError as e:
+                print(f"❗ JSON decode error: {e}")
+                args = {}
+
+            # Call the tool manager with name and parsed args
+            try:
+                print(f"Calling tool manager for '{name}' with {args}...")
+                tool_result = await self.tools_manager.call_tool(name, args)
                 print("✅ tool call returned:", tool_result)
             except Exception as e:
-                print(f"❗ exception in call_tool '{fc_name}': {e}")
-                tool_result = {"content": f"Error calling {fc_name}: {e}"}
+                print(f"❗ exception in call_tool '{name}': {e}")
+                tool_result = {"content": f"Error calling {name}: {e}"}
 
-            # Extract content robustly
+            # Extract content
             if hasattr(tool_result, 'content'):
                 result_content = tool_result.content
             elif isinstance(tool_result, dict) and 'content' in tool_result:
@@ -206,14 +199,13 @@ class OpenAIProvider(BaseLLMProvider):
 
             print("result.content:", result_content)
 
-            # Append the function/tool's response into the conversation
+            # Append the function/tool's response
             converted_messages.append({
-                "role": "tool",
-                "name": fc_name,
+                "role": "function",
+                "name": name,
                 "content": result_content
             })
 
-        # If we exhaust max_iterations without a terminal response
         raise RuntimeError("Max tool iteration depth reached in generate().")
 
 
