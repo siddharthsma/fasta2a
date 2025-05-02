@@ -3,7 +3,7 @@ import json
 from typing import List, Dict, Any, Union, Literal
 
 # Local imports
-from smarta2a.client.smart_mcp_client import SmartMCPClient
+from smarta2a.client.mcp_client import MCPClient
 from smarta2a.client.a2a_client import A2AClient
 from smarta2a.utils.types import AgentCard
 
@@ -14,11 +14,11 @@ class ToolsManager:
     """
     def __init__(self):
         self.tools_list: List[Any] = []
-        self.clients: Dict[str, Union[SmartMCPClient, A2AClient]] = {}
+        self.clients: Dict[str, Union[MCPClient, A2AClient]] = {}
 
     def load_mcp_tools(self, urls_or_paths: List[str]) -> None:
         for url in urls_or_paths:
-            mcp_client = SmartMCPClient(url)
+            mcp_client = MCPClient(url)
             for tool in mcp_client.list_tools():
                 self.tools_list.append(tool)
                 self.clients[tool.name] = mcp_client
@@ -37,7 +37,7 @@ class ToolsManager:
     def describe_tools(self, client_type: Literal["mcp", "a2a"]) -> str:
         lines = []
         for tool in self.tools_list:
-            if client_type == "mcp" and isinstance(tool, SmartMCPClient):
+            if client_type == "mcp" and isinstance(tool, MCPClient):
                 schema = json.dumps(tool.input_schema, indent=2)
                 lines.append(
                     f"- **{tool.name}**: {tool.description}\n  Parameters schema:\n  ```json\n{schema}\n```"

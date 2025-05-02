@@ -1,4 +1,4 @@
-from mcp.client import Client
+from mcp.client import ClientSession, sse_client, stdio_client, StdioServerParameters
 from typing import Optional, Dict, Any
 
 class SmartMCPClient:
@@ -7,6 +7,9 @@ class SmartMCPClient:
         Initialize with the server URL. Headers are provided per request, not globally.
         """
         self.base_url = base_url
+        self.session = None
+        self.exit_stack = AsyncExitStack()
+        self._connect_to_server()
 
     async def list_tools(self, session_id: Optional[str] = None) -> Any:
         """

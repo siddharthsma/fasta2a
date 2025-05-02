@@ -5,10 +5,10 @@ from mcp.client import ClientSession, sse_client, stdio_client, StdioServerParam
 
 
 class MCPClient:
-    def __init__(self):
+    def __init__(self, server_path_or_url: str):
         self.session = None
         self.exit_stack = AsyncExitStack()
-        self._connect_to_server()
+        self._connect_to_server(server_path_or_url)
 
     async def _connect_to_sse_server(self, server_url: str):
         """Connect to an SSE MCP server."""
