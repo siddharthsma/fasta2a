@@ -57,7 +57,7 @@ Part = Annotated[Union[TextPart, FilePart, DataPart], Field(discriminator="type"
 
 
 class Message(BaseModel):
-    role: Literal["user", "agent", "system"] # Added system role for system messages
+    role: Literal["user", "agent", "system", "tool"] # Added system role for system messages
     parts: List[Part]
     metadata: dict[str, Any] | None = None
 
