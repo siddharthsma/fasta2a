@@ -83,6 +83,9 @@ class SmartA2A:
     # Add this method to delegate ASGI calls
     async def __call__(self, scope, receive, send):
         return await self.app(scope, receive, send)
+    
+    def on_event(self, event_name: str):
+        return self.app.on_event(event_name) 
         
     def on_send_task(self):
         def decorator(func: Callable[[SendTaskRequest, Optional[StateData]], Any]) -> Callable:

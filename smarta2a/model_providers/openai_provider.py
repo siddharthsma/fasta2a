@@ -13,47 +13,31 @@ class OpenAIProvider(BaseLLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: str,
-        base_system_prompt: Optional[str],
-        mcp_server_urls_or_paths: Optional[List[str]],
-        agent_cards: Optional[List[AgentCard]],
-        tools_manager: ToolsManager,
-    ):
-        self.client = AsyncOpenAI(api_key=api_key)
-        self.model = model
-        self.base_system_prompt = base_system_prompt
-        self.mcp_server_urls_or_paths = mcp_server_urls_or_paths
-        self.agent_cards = agent_cards
-        self.tools_manager = tools_manager
-        self.supported_media_types = [
-            "image/png", "image/jpeg", "image/gif", "image/webp"
-        ]
-    
-    @classmethod
-    async def create(
-        cls,
-        api_key: str,
         model: str = "gpt-4o",
         base_system_prompt: Optional[str] = None,
         mcp_server_urls_or_paths: Optional[List[str]] = None,
         agent_cards: Optional[List[AgentCard]] = None,
-    ) -> "OpenAIProvider":
-        tools_manager = ToolsManager()
-
-        if mcp_server_urls_or_paths:
-            await tools_manager.load_mcp_tools(mcp_server_urls_or_paths)
-
-        if agent_cards:
-            await tools_manager.load_a2a_tools(agent_cards)
-
-        return cls(
-            api_key=api_key,
-            model=model,
-            base_system_prompt=base_system_prompt,
-            mcp_server_urls_or_paths=mcp_server_urls_or_paths,
-            agent_cards=agent_cards,
-            tools_manager=tools_manager,
-        )
+        # enable_discovery: bool = False
+    ):
+        self.client = AsyncOpenAI(api_key=api_key)
+        self.model = model
+        self.mcp_server_urls_or_paths = mcp_server_urls_or_paths
+        self.agent_cards = agent_cards
+        # Store the base system prompt; will be enriched by tool descriptions
+        self.base_system_prompt = base_system_prompt
+        self.supported_media_types = [
+            "image/png", "image/jpeg", "image/gif", "image/webp"
+        ]
+        # Initialize ToolsManager 
+        self.tools_manager = ToolsManager()
+        
+    
+    async def load(self):
+        if self.mcp_server_urls_or_paths:
+            await self.tools_manager.load_mcp_tools(self.mcp_server_urls_or_paths)
+        
+        if self.agent_cards:
+            await self.tools_manager.load_a2a_tools(self.agent_cards)
     
 
     def _build_system_prompt(self) -> str:
