@@ -151,9 +151,7 @@ class OpenAIProvider(BaseLLMProvider):
                 tools=self._format_openai_tools(),
                 **kwargs
             )
-            message = response.choices[0].message
-            print(message)
-            # If the assistant didn't call a tool, return its content
+            message = response.choices[0].message            # If the assistant didn't call a tool, return its content
             if not hasattr(message, 'tool_calls') or not message.tool_calls:
                 return message.content
 
@@ -183,6 +181,8 @@ class OpenAIProvider(BaseLLMProvider):
                 # Execute the tool via the ToolsManager
                 try:
                     result = await self.tools_manager.call_tool(tool_name, tool_args)
+                    print("result.content:")
+                    print(result.content)
                     result_content = result.content
                 except Exception as e:
                     result_content = f"Error executing {tool_name}: {e}"
