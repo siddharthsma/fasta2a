@@ -152,7 +152,7 @@ class OpenAIProvider(BaseLLMProvider):
                 **kwargs
             )
             message = response.choices[0].message
-
+            print(message)
             # If the assistant didn't call a tool, return its content
             if not hasattr(message, 'tool_calls') or not message.tool_calls:
                 return message.content
