@@ -144,7 +144,6 @@ class OpenAIProvider(BaseLLMProvider):
         max_iterations = 10
 
         for _ in range(max_iterations):
-            # Call OpenAI chat completion with available tools
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=converted_messages,
@@ -152,50 +151,42 @@ class OpenAIProvider(BaseLLMProvider):
                 **kwargs
             )
             message = response.choices[0].message
-            print("After message choices")            # If the assistant didn't call a tool, return its content
-            if not hasattr(message, 'tool_calls') or not message.tool_calls:
+            print(">>> got back:", message)
+
+            # If there's no function_call, we're done.
+            if message.function_call is None:
                 return message.content
 
-            # Append assistant's tool call to the conversation
+            # 1) Add the assistant’s function‐call intent to the convo
             converted_messages.append({
                 "role": "assistant",
-                "content": message.content,
-                "tool_calls": [
-                    {"id": tc.id,
-                     "type": "function",
-                     "function": {"name": tc.function.name,
-                                   "arguments": tc.function.arguments}
-                    }
-                    for tc in message.tool_calls
-                ]
+                "content": None,
+                "function_call": {
+                    "name": message.function_call.name,
+                    "arguments": message.function_call.arguments
+                }
             })
-            print("After converted messages")
-            print(message.tool_calls)
-            # Process each tool call sequentially
-            for tc in message.tool_calls:
-                tool_name = tc.function.name
-                # Parse arguments
-                try:
-                    tool_args = json.loads(tc.function.arguments)
-                except json.JSONDecodeError:
-                    tool_args = {}
 
-                # Execute the tool via the ToolsManager
-                try:
-                    result = await self.tools_manager.call_tool(tool_name, tool_args)
-                    print("result.content:")
-                    print(result.content)
-                    result_content = result.content
-                except Exception as e:
-                    result_content = f"Error executing {tool_name}: {e}"
+            # 2) Actually invoke your tool
+            func_name = message.function_call.name
+            func_args = json.loads(message.function_call.arguments or "{}")
+            try:
+                tool_result = await self.tools_manager.call_tool(func_name, func_args)
+            except Exception as e:
+                tool_result = {"content": f"Error calling {func_name}: {e}"}
 
-                # Append the tool response into the conversation
-                converted_messages.append({
-                    "role": "tool",
-                    "content": result_content,
-                    "tool_call_id": tc.id
-                })
-        # If max iterations reached without a final response
+            # Debug: inspect what comes back
+            print(">>> raw tool result:", tool_result)
+
+            # 3) Append the function’s response into the convo
+            #    (OpenAI expects role="function" and name=the function name)
+            converted_messages.append({
+                "role": "function",
+                "name": func_name,
+                "content": tool_result.get("content", str(tool_result))
+            })
+
+            # and then loop again to get the final answer…
         raise RuntimeError("Max tool iteration depth reached in generate().")
 
 
