@@ -55,6 +55,7 @@ class ToolsManager:
         return self.clients.get(tool_name)
 
     async def call_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
+        print(f"Calling tool: {tool_name} with args: {args}")
         client = self.get_client(tool_name)
         if not client:
             raise ValueError(f"Tool not found: {tool_name}")
