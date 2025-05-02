@@ -516,7 +516,6 @@ class SmartA2A:
                         task_id=request.params.id,
                         metadata=getattr(raw_result, "metadata", {}) or {}
                     )
-                    print(task)
 
                 # Final validation and packaging
                 return self._finalize_cancel_response(request, task)
