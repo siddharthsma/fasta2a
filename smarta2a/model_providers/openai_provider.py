@@ -170,6 +170,7 @@ class OpenAIProvider(BaseLLMProvider):
                 ]
             })
             print("After converted messages")
+            print(message.tool_calls)
             # Process each tool call sequentially
             for tc in message.tool_calls:
                 tool_name = tc.function.name
