@@ -143,7 +143,6 @@ class OpenAIProvider(BaseLLMProvider):
         max_iterations = 10
 
         for iteration in range(max_iterations):
-            print(f"Iteration {iteration+1}/{max_iterations}")
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=converted_messages,
@@ -151,7 +150,6 @@ class OpenAIProvider(BaseLLMProvider):
                 **kwargs
             )
             message = response.choices[0].message
-            print("got back:", message)
 
             # Detect and extract the tool/function call
             if getattr(message, 'function_call', None):
@@ -162,11 +160,9 @@ class OpenAIProvider(BaseLLMProvider):
                 name = tc.function.name
                 args_raw = tc.function.arguments
             else:
-                print("No function/tool call, returning assistant content.")
                 return message.content
 
-            # Log and append the assistant's intent
-            print(f"→ About to call tool '{name}' with args {args_raw}")
+            # Append the assistant's intent
             converted_messages.append({
                 "role": "assistant",
                 "content": None,
@@ -176,17 +172,13 @@ class OpenAIProvider(BaseLLMProvider):
             # Parse arguments safely
             try:
                 args = json.loads(args_raw or '{}')
-            except json.JSONDecodeError as e:
-                print(f"❗ JSON decode error: {e}")
+            except json.JSONDecodeError:
                 args = {}
 
             # Call the tool manager with name and parsed args
             try:
-                print(f"Calling tool manager for '{name}' with {args}...")
                 tool_result = await self.tools_manager.call_tool(name, args)
-                print("✅ tool call returned:", tool_result)
             except Exception as e:
-                print(f"❗ exception in call_tool '{name}': {e}")
                 tool_result = {"content": f"Error calling {name}: {e}"}
 
             # Extract content
@@ -196,8 +188,6 @@ class OpenAIProvider(BaseLLMProvider):
                 result_content = tool_result['content']
             else:
                 result_content = str(tool_result)
-
-            print("result.content:", result_content)
 
             # Append the function/tool's response
             converted_messages.append({
