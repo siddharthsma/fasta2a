@@ -18,7 +18,7 @@ class ToolsManager:
 
     async def load_mcp_tools(self, urls_or_paths: List[str]) -> None:
         for url in urls_or_paths:
-            mcp_client = MCPClient(url)
+            mcp_client = await MCPClient.create(url)
             tools = await mcp_client.list_tools()
             for tool in tools:
                 self.tools_list.append(tool)

@@ -18,7 +18,7 @@ api_key = os.getenv("OPENAI_API_KEY")
 openai_provider = OpenAIProvider(
     api_key=api_key,
     model="gpt-4o-mini",
-    #mcp_server_urls_or_paths=["/Users/apple/Desktop/Code/weather/weather.py"],
+    mcp_server_urls_or_paths=["/Users/apple/Desktop/Code/weather/weather.py"],
 )
 
 # Create the agent
@@ -27,9 +27,6 @@ agent = A2AAgent(
     model_provider=openai_provider,
 )
 
-# Start the server
-uvicorn.run(agent.get_app(), host="0.0.0.0", port=8000)
-
 # Entry point
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run(agent.get_app(), host="0.0.0.0", port=8000)

@@ -7,10 +7,15 @@ from mcp.client.sse import sse_client
 
 
 class MCPClient:
-    def __init__(self, server_path_or_url: str):
+    def __init__(self):
         self.session = None
         self.exit_stack = AsyncExitStack()
-        self._connect_to_server(server_path_or_url)
+
+    @classmethod
+    async def create(cls, server_path_or_url: str):
+        client = cls()
+        await client._connect_to_server(server_path_or_url)
+        return client
 
     async def _connect_to_sse_server(self, server_url: str):
         """Connect to an SSE MCP server."""
