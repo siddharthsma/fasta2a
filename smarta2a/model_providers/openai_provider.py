@@ -153,43 +153,44 @@ class OpenAIProvider(BaseLLMProvider):
             message = response.choices[0].message
             print("got back:", message)
 
-            # Detect tool call: support both function_call (new) and tool_calls (legacy)
+            # Detect and extract the tool/function call
             if getattr(message, 'function_call', None):
-                # Modern SDK: single function call
-                fc_name = message.function_call.name
-                fc_args_raw = message.function_call.arguments
+                tool_call_obj = message.function_call
+                fc_name = tool_call_obj.name
+                print(f"→ Extracted function_call for '{fc_name}'")
+                # Append assistant's intent to call the function
+                converted_messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "function_call": {
+                        "name": tool_call_obj.name,
+                        "arguments": tool_call_obj.arguments
+                    }
+                })
+                call_arg = tool_call_obj
             elif getattr(message, 'tool_calls', None):
-                # Legacy: list of tool_calls
                 tc = message.tool_calls[0]
                 fc_name = tc.function.name
-                fc_args_raw = tc.function.arguments
+                print(f"→ Extracted legacy tool_call for '{fc_name}'")
+                # Append assistant's intent to call the tool
+                converted_messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "function_call": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments
+                    }
+                })
+                call_arg = tc
             else:
-                # No tool call; return content
+                # No tool call; return the model's content
                 print("No function/tool call, returning assistant content.")
                 return message.content
 
-            # Log and append the assistant's function_call intent
-            print(f"→ About to call tool '{fc_name}' with args {fc_args_raw}")
-            converted_messages.append({
-                "role": "assistant",
-                "content": None,
-                "function_call": {
-                    "name": fc_name,
-                    "arguments": fc_args_raw
-                }
-            })
-
-            # Parse arguments safely
-            try:
-                tool_args = json.loads(fc_args_raw or '{}')
-            except json.JSONDecodeError as jde:
-                print(f"❗ JSON decode error for arguments: {jde}")
-                tool_args = {}
-
-            # Call the tool and capture result
+            # Invoke the tool manager with the raw call object
             try:
                 print(f"Calling tool manager for '{fc_name}'...")
-                tool_result = await self.tools_manager.call_tool(fc_name, tool_args)
+                tool_result = await self.tools_manager.call_tool(call_arg)
                 print("✅ tool call returned:", tool_result)
             except Exception as e:
                 print(f"❗ exception in call_tool '{fc_name}': {e}")
@@ -205,9 +206,9 @@ class OpenAIProvider(BaseLLMProvider):
 
             print("result.content:", result_content)
 
-            # Append the function's response into the conversation
+            # Append the function/tool's response into the conversation
             converted_messages.append({
-                "role": "function",
+                "role": "tool",
                 "name": fc_name,
                 "content": result_content
             })
