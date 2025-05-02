@@ -1,10 +1,12 @@
 from smarta2a.server import SmartA2A
 from smarta2a.utils.types import A2AResponse, TaskStatus, TaskState, TextPart, FileContent, FilePart
+from smarta2a.state_stores.inmemory_state_store import InMemoryStateStore
 
-app = SmartA2A("EchoServer")
+state_store = InMemoryStateStore()
+app = SmartA2A("EchoServer", state_store=state_store)
 
 @app.on_send_task()
-def handle_task(request):
+def handle_task(request, state):
     """Echo the input text back as a completed task"""
     input_text = request.content[0].text
     #return f"Response to task: {input_text}"
@@ -14,7 +16,7 @@ def handle_task(request):
     )
 
 @app.on_send_subscribe_task()
-async def handle_subscribe_task(request):
+async def handle_subscribe_task(request, state):
     """Subscribe to the task"""
     input_text = request.content[0].text
     yield f"First response to the task: {input_text}"

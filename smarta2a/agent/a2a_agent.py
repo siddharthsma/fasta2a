@@ -16,15 +16,15 @@ class A2AAgent:
             name: str,
             model_provider: BaseLLMProvider,
             history_update_strategy: HistoryUpdateStrategy = None,
-            state_storage: BaseStateStore = None,
+            state_store: BaseStateStore = None,
         ):
         self.model_provider = model_provider
         self.history_update_strategy = history_update_strategy or AppendStrategy()
-        self.state_storage = state_storage or InMemoryStateStore()
+        self.state_store = state_store or InMemoryStateStore()
         self.app = SmartA2A(
             name=name,
             history_update_strategy=self.history_update_strategy,
-            state_storage=self.state_storage
+            state_store=self.state_store
         )
         self.__register_handlers()
 
