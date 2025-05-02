@@ -150,9 +150,9 @@ class SmartA2A:
             if method == "tasks/send":
                 state_data = self.state_mgr.init_or_get(params.get("sessionId"), params.get("message"), params.get("metadata") or {})
                 if state_store:
-                    return self._handle_send_task(request, state_data)
+                    return await self._handle_send_task(request, state_data)
                 else:
-                    return self._handle_send_task(request)
+                    return await self._handle_send_task(request)
             elif method == "tasks/sendSubscribe":
                 state_data = self.state_mgr.init_or_get(params.get("sessionId"), params.get("message"), params.get("metadata") or {})
                 if state_store:
@@ -176,7 +176,7 @@ class SmartA2A:
             return JSONRPCResponse(id=request.id, error=err).model_dump()
 
 
-    def _handle_send_task(self, request_data: JSONRPCRequest, state_data: Optional[StateData] = None) -> SendTaskResponse:
+    async def _handle_send_task(self, request_data: JSONRPCRequest, state_data: Optional[StateData] = None) -> SendTaskResponse:
         try:
             # Validate request format
             request = SendTaskRequest.model_validate(request_data.model_dump())
@@ -203,9 +203,9 @@ class SmartA2A:
             try:
 
                 if state_data:
-                    raw_result = handler(request, state_data)
+                    raw_result = await handler(request, state_data)
                 else:
-                    raw_result = handler(request)
+                    raw_result = await handler(request)
 
                 # Handle direct SendTaskResponse returns
                 if isinstance(raw_result, SendTaskResponse):

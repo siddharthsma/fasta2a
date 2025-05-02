@@ -6,7 +6,7 @@ state_store = InMemoryStateStore()
 app = SmartA2A("EchoServer", state_store=state_store)
 
 @app.on_send_task()
-def handle_task(request, state):
+async def handle_task(request, state):
     """Echo the input text back as a completed task"""
     input_text = request.content[0].text
     #return f"Response to task: {input_text}"
