@@ -1,5 +1,6 @@
 # Library imports
 import re
+from typing import Dict, Any
 from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -79,7 +80,7 @@ class MCPClient:
         response = await self.session.list_tools()
         return response.tools
     
-    async def call_tool(self, tool_name: str, **tool_args):
+    async def call_tool(self, tool_name: str, tool_args: Dict[str, Any]):
         """Call a tool."""
         response = await self.session.call_tool(tool_name, tool_args)
         return response.content
