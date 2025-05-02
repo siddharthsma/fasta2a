@@ -18,9 +18,9 @@ class StateManager:
             return StateData(sessionId=sid, history=[message], metadata=metadata or {})
         existing = self.store.get_state(sid) or StateData(sessionId=sid, history=[], metadata={})
         existing.history.append(message)
-        print(existing)
         existing.metadata = {**(existing.metadata or {}), **(metadata or {})}
         self.store.update_state(sid, existing)
+        print("Over here")
         return existing
 
     def update(self, state: StateData):
