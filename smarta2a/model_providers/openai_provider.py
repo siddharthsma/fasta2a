@@ -130,10 +130,12 @@ class OpenAIProvider(BaseLLMProvider):
         return openai_tools
 
 
-    async def generate(self, messages: List[Message], **kwargs) -> str:
+    async def generate(self, messages: List[Dict[str, Any]], **kwargs) -> str:
         """
         Generate a complete response, invoking tools as needed.
         """
+        # Turn messages from list of dicts to list of Message objects
+        messages = [Message(**msg) for msg in messages]
         # Convert incoming messages with dynamic system prompt
         converted_messages = self._convert_messages(messages)
         max_iterations = 10
