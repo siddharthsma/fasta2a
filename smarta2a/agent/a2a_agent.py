@@ -30,7 +30,7 @@ class A2AAgent:
 
     def __register_handlers(self):
         @self.app.on_send_task()
-        async def on_send_task(request: SendTaskRequest, state: StateData):
+        def on_send_task(request: SendTaskRequest, state: StateData):
             response = self.model_provider.generate(state.history)
             return response
         
