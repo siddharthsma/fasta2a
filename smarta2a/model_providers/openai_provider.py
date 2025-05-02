@@ -80,12 +80,11 @@ class OpenAIProvider(BaseLLMProvider):
         """Convert messages to OpenAI format with system prompt"""
         openai_messages = []
         
-        # Add system prompt if provided
-        if self.system_prompt:
-            openai_messages.append({
-                "role": "system",
-                "content": self._build_system_prompt()
-            })
+        # Add system prompt
+        openai_messages.append({
+            "role": "system",
+            "content": self._build_system_prompt()
+        })
         
         # Process user-provided messages
         for msg in messages:
