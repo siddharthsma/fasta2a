@@ -151,7 +151,8 @@ class OpenAIProvider(BaseLLMProvider):
                 tools=self._format_openai_tools(),
                 **kwargs
             )
-            message = response.choices[0].message            # If the assistant didn't call a tool, return its content
+            message = response.choices[0].message
+            print("After message choices")            # If the assistant didn't call a tool, return its content
             if not hasattr(message, 'tool_calls') or not message.tool_calls:
                 return message.content
 
@@ -168,7 +169,7 @@ class OpenAIProvider(BaseLLMProvider):
                     for tc in message.tool_calls
                 ]
             })
-
+            print("After converted messages")
             # Process each tool call sequentially
             for tc in message.tool_calls:
                 tool_name = tc.function.name
