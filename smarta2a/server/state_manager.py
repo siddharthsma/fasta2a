@@ -20,7 +20,6 @@ class StateManager:
         existing.history.append(message)
         existing.metadata = {**(existing.metadata or {}), **(metadata or {})}
         self.store.update_state(sid, existing)
-        print("Over here")
         return existing
 
     def update(self, state: StateData):
