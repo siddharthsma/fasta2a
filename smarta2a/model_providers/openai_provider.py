@@ -184,6 +184,8 @@ class OpenAIProvider(BaseLLMProvider):
             try:
                 print("calling tool")
                 tool_result = await self.tools_manager.call_tool(name, args)
+                print("tool_result")
+                print(tool_result)
             except Exception as e:
                 tool_result = {"content": f"Error calling {name}: {e}"}
 
