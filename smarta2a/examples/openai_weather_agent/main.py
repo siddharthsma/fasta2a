@@ -2,7 +2,6 @@
 from dotenv import load_dotenv
 import os
 import uvicorn
-import asyncio
 from smarta2a.agent.a2a_agent import A2AAgent
 from smarta2a.model_providers.openai_provider import OpenAIProvider
 
@@ -18,6 +17,7 @@ api_key = os.getenv("OPENAI_API_KEY")
 openai_provider = OpenAIProvider(
     api_key=api_key,
     model="gpt-4o-mini",
+    base_system_prompt="You are a cheerful assistant that specialises in helping with weather related queries",
     mcp_server_urls_or_paths=["/Users/apple/Desktop/Code/weather/weather.py"],
 )
 

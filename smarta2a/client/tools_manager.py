@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Union, Literal
 # Local imports
 from smarta2a.client.mcp_client import MCPClient
 from smarta2a.client.a2a_client import A2AClient
-from smarta2a.utils.types import AgentCard
+from smarta2a.utils.types import AgentCard, Tool
 
 class ToolsManager:
     """
@@ -27,7 +27,8 @@ class ToolsManager:
     async def load_a2a_tools(self, agent_cards: List[AgentCard]) -> None:
         for agent_card in agent_cards:
             a2a_client = A2AClient(agent_card)
-            tools = await a2a_client.list_tools()
+            tools_list = await a2a_client.list_tools()
+            tools = [Tool(**tool_dict) for tool_dict in tools_list]
             for tool in tools:
                 self.tools_list.append(tool)
                 self.clients[tool.name] = a2a_client

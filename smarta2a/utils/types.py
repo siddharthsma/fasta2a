@@ -482,3 +482,8 @@ class StateData(BaseModel):
     sessionId: str
     history: List[Message]
     metadata: Dict[str, Any]
+
+class Tool(BaseModel):
+    name: str
+    description: str
+    inputSchema: Dict[str, Any]
