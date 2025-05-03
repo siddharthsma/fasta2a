@@ -130,6 +130,7 @@ class OpenAIProvider(BaseLLMProvider):
                     "parameters": tool.inputSchema
                 }
             })
+        print(openai_tools)
         return openai_tools
 
 
