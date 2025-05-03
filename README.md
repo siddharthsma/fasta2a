@@ -1,3 +1,12 @@
+<picture>
+  <img alt="SmartA2A Logo" src="documentation/smarta2a_docs/smarta2a_small_banner.png" width="100%">
+</picture>
+
+<div>
+<br>
+</div>
+
+
 # SmartA2A
 
 A Python package for creating a server following Google's Agent2Agent protocol
