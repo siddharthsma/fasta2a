@@ -183,6 +183,8 @@ class OpenAIProvider(BaseLLMProvider):
             # Call the tool manager with name and parsed args
             try:
                 print("calling tool")
+                print(f"name: {name}")
+                print(f"args: {args}")
                 tool_result = await self.tools_manager.call_tool(name, args)
                 print("tool_result")
                 print(tool_result)
