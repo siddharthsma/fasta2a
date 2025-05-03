@@ -121,6 +121,7 @@ class OpenAIProvider(BaseLLMProvider):
         Convert internal tools metadata to OpenAI's function-call schema.
         """
         openai_tools = []
+        print(self.tools_manager.get_tools())
         for tool in self.tools_manager.get_tools():
             openai_tools.append({
                 "type": "function",
@@ -130,7 +131,7 @@ class OpenAIProvider(BaseLLMProvider):
                     "parameters": tool.inputSchema
                 }
             })
-        print(openai_tools)
+        
         return openai_tools
 
 
