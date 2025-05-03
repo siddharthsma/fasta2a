@@ -4,7 +4,8 @@ import httpx
 import json
 from httpx_sse import connect_sse
 from inspect import signature, Parameter, iscoroutinefunction
-from pydantic import create_model, Field, BaseModel
+from pydantic import create_model, Field, BaseModel, ValidationError
+from typing import Optional, Union
 
 # Local imports
 from smarta2a.utils.types import (
@@ -250,38 +251,51 @@ class A2AClient:
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
         """Call a tool by name with validated arguments."""
+        # 1) lookup
         if not hasattr(self, tool_name):
             raise ValueError(f"Tool {tool_name} not found")
         method = getattr(self, tool_name)
-        
-        # Validate arguments using the same schema as list_tools
+
+        # 2) build a minimal pydantic model for validation
         sig = signature(method)
-        parameters = sig.parameters
-        
-        fields = {}
-        for param_name, param in parameters.items():
+        model_fields: dict[str, tuple] = {}
+
+        for param_name, param in sig.parameters.items():
             if param_name == 'self':
                 continue
-            annotation = param.annotation
-            if annotation is Parameter.empty:
-                annotation = Any
-            # Handle Literal
-            if get_origin(annotation) is Literal:
-                enum_values = get_args(annotation)
-                annotation = Literal.__getitem__(enum_values)
+
+            # annotation
+            ann = param.annotation
+            if ann is Parameter.empty:
+                ann = Any
+
+            # default
             default = param.default
             if default is Parameter.empty:
-                fields[param_name] = (annotation, Field(...))
+                # required field
+                model_fields[param_name] = (ann, Field(...))
             else:
-                fields[param_name] = (annotation, Field(default=default))
-        
-        # Create validation model
-        model = create_model(f"{tool_name}_ValidationModel", **fields)
-        validated_args = model(**arguments).dict()
-        
-        # Call the method
+                # optional field: if default is None, widen annotation
+                if default is None and get_origin(ann) is not Union:
+                    ann = Optional[ann]
+                model_fields[param_name] = (ann, Field(default=default))
+
+        ValidationModel = create_model(
+            f"{tool_name}_ValidationModel",
+            **model_fields
+        )
+
+        # 3) validate (will raise ValidationError on bad args)
+        try:
+            validated = ValidationModel(**arguments)
+        except ValidationError as e:
+            # re-raise or wrap as you like
+            raise ValueError(f"Invalid arguments for tool {tool_name}: {e}") from e
+
+        validated_args = validated.dict()
+
+        # 4) call
         if iscoroutinefunction(method):
             return await method(**validated_args)
         else:
-            # Note: Synchronous methods (like subscribe) will block the event loop
             return method(**validated_args)
