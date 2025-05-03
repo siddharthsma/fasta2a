@@ -121,18 +121,15 @@ class OpenAIProvider(BaseLLMProvider):
         Convert internal tools metadata to OpenAI's function-call schema.
         """
         openai_tools = []
-        print("tools_manager")
-        print(self.tools_manager.get_tools())
         for tool in self.tools_manager.get_tools():
             openai_tools.append({
                 "type": "function",
                 "function": {
                     "name": tool.name,
                     "description": tool.description,
-                    "parameters": tool.inputSchema
+                    "parameters": tool.input_schema
                 }
             })
-        
         return openai_tools
 
 
@@ -153,8 +150,7 @@ class OpenAIProvider(BaseLLMProvider):
                 **kwargs
             )
             message = response.choices[0].message
-            print("message")
-            print(message)
+
             # Detect and extract the tool/function call
             if getattr(message, 'function_call', None):
                 name = message.function_call.name
@@ -172,8 +168,7 @@ class OpenAIProvider(BaseLLMProvider):
                 "content": None,
                 "function_call": {"name": name, "arguments": args_raw}
             })
-            print("converted_messages")
-            print(converted_messages)
+
             # Parse arguments safely
             try:
                 args = json.loads(args_raw or '{}')
@@ -182,12 +177,7 @@ class OpenAIProvider(BaseLLMProvider):
 
             # Call the tool manager with name and parsed args
             try:
-                print("calling tool")
-                print(f"name: {name}")
-                print(f"args: {args}")
                 tool_result = await self.tools_manager.call_tool(name, args)
-                print("tool_result")
-                print(tool_result)
             except Exception as e:
                 tool_result = {"content": f"Error calling {name}: {e}"}
 
