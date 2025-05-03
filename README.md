@@ -31,10 +31,9 @@ SmartA2A can also be used to create standalone agents that:
 - Connect to any MCP server you choose
 - Require only a few lines of setup
 
----
-
 SmartA2A makes it easy to build interoperable, communication-ready AI systems—whether you're extending existing frameworks or starting from scratch.
 
+---
 
 ## Installation
 
