@@ -87,6 +87,42 @@ To run the echo server:
 uvicorn path.to.echo_server.main.py:app
 ```
 
+You can test the echo server using curl commands:
+
+```bash
+# Test sending a task
+curl -X POST http://localhost:8000/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "tasks/send",
+    "params": {
+      "id": "task1",
+      "message": {
+        "role": "user",
+        "parts": [{"type": "text", "text": "Hello, echo server!"}]
+      }
+    }
+  }'
+
+# Test subscribing to a task
+curl -X POST http://localhost:8000/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "2",
+    "method": "tasks/sendSubscribe",
+    "params": {
+      "id": "task2",
+      "message": {
+        "role": "user",
+        "parts": [{"type": "text", "text": "Hello, streaming echo!"}]
+      }
+    }
+  }'
+```
+
 ## Weather Agent Example
 
 Here's an example of a weather agent that uses OpenAI's GPT model to handle weather-related queries. Note that you will need to setup the weather MCP server as a pre-requisite as specified by the [MCP Quick-start server tutorial](https://modelcontextprotocol.io/quickstart/server). You will also need to add your OpenAI API key to the .env file.
@@ -128,6 +164,31 @@ This example demonstrates:
 To run the weather agent:
 ```bash
 python path/to/weather_agent/main.py
+```
+
+To test the weather agent, ensure:
+1. Your weather MCP server is running
+2. Your OpenAI API key is set in the .env file
+3. The agent is running as shown above
+
+Then test it with curl:
+
+```bash
+# Test weather query
+curl -X POST http://localhost:8000/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "tasks/send",
+    "params": {
+      "id": "weather1",
+      "message": {
+        "role": "user",
+        "parts": [{"type": "text", "text": "What is the weather in New York?"}]
+      }
+    }
+  }'
 ```
 
 ## License
