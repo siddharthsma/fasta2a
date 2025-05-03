@@ -182,50 +182,70 @@ class A2AClient:
     
 
     async def list_tools(self) -> list[dict[str, Any]]:
-        """Return metadata for all available tools."""
+        """Return metadata for all available tools with minimal inputSchema."""
         tools = []
-        tool_names = [
-            'send'
-        ]
+        tool_names = ['send']  # add other tool names here
         for name in tool_names:
             method = getattr(self, name)
             doc = method.__doc__ or ""
             description = doc.strip().split('\n')[0] if doc else ""
             
-            # Generate input schema
             sig = signature(method)
-            parameters = sig.parameters
-            
-            fields = {}
-            required = []
-            for param_name, param in parameters.items():
+            properties: dict[str, Any] = {}
+            required: list[str] = []
+            for param_name, param in sig.parameters.items():
                 if param_name == 'self':
                     continue
-                annotation = param.annotation
-                if annotation is Parameter.empty:
-                    annotation = Any
-                # Handle Literal types
-                if get_origin(annotation) is Literal:
-                    enum_values = get_args(annotation)
-                    annotation = Literal.__getitem__(enum_values)
-                # Handle default
+                
+                ann = param.annotation
                 default = param.default
+                
+                # Handle Literal types
+                if get_origin(ann) is Literal:
+                    enum_vals = list(get_args(ann))
+                    schema_field: dict[str, Any] = {
+                        "title": param_name.replace('_', ' ').title(),
+                        "enum": enum_vals
+                    }
+                    # For Literals we'd typically not mark required if there's a default
+                else:
+                    # map basic Python types to JSON Schema types
+                    type_map = {
+                        str: "string",
+                        int: "integer",
+                        float: "number",
+                        bool: "boolean",
+                        dict: "object",
+                        list: "array",
+                        Any: None
+                    }
+                    json_type = type_map.get(ann, None)
+                    schema_field = {"title": param_name.replace('_', ' ').title()}
+                    if json_type:
+                        schema_field["type"] = json_type
+                
+                # default vs required
                 if default is Parameter.empty:
                     required.append(param_name)
-                    field = Field(...)
+                    # no default key
                 else:
-                    field = Field(default=default)
-                fields[param_name] = (annotation, field)
+                    schema_field["default"] = default
+                
+                properties[param_name] = schema_field
             
-            # Create dynamic Pydantic model
-            model = create_model(f"{name}_Input", **fields)
-            schema = model.schema()
-            
+            input_schema = {
+                "title": f"{name}_Arguments",
+                "type": "object",
+                "properties": properties,
+                "required": required,
+            }
+
             tools.append({
-                'name': name,
-                'description': description,
-                'inputSchema': schema
+                "name": name,
+                "description": description,
+                "inputSchema": input_schema
             })
+
         return tools
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
