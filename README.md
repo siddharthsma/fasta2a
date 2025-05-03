@@ -7,9 +7,8 @@
 </div>
 
 ![PyPI](https://img.shields.io/pypi/v/Smarta2a.svg)
-![PyPI - Total Downloads](https://img.shields.io/pypi/dt/Smarta2a.svg)
+![Downloads](https://static.pepy.tech/badge/Smarta2a)
 ![GitHub Repo stars](https://img.shields.io/github/stars/siddharthsma/smarta2a?style=social)
-![CI](https://github.com/siddharthsma/smarta2a/actions/workflows/tests.yml/badge.svg)
 
 **SmartA2A** is a Python framework that helps you build servers and AI agents that communicate using the [A2A (Agent2Agent) protocol](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/). A2A defines a common language that enables agents to exchange information and collaborate effectively across systems.
 
