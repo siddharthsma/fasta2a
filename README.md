@@ -1,5 +1,5 @@
 <picture>
-  <img alt="SmartA2A Logo" src="documentation/smarta2a_docs/smarta2a_small_banner.png" width="80%">
+  <img alt="SmartA2A Logo" src="documentation/smarta2a_docs/smarta2a_small_banner.png" width="100%">
 </picture>
 
 <div>
