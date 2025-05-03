@@ -152,7 +152,7 @@ class OpenAIProvider(BaseLLMProvider):
                 **kwargs
             )
             message = response.choices[0].message
-
+            print(message)
             # Detect and extract the tool/function call
             if getattr(message, 'function_call', None):
                 name = message.function_call.name
