@@ -89,7 +89,7 @@ uvicorn path.to.echo_server.main.py:app
 
 ## Weather Agent Example
 
-Here's an example of a weather agent that uses OpenAI's GPT model to handle weather-related queries. Note that you will need to setup the weather MCP server as a pre-requisite as specified by the [MCP Quick-start server tutorial](https://modelcontextprotocol.io/quickstart/server)
+Here's an example of a weather agent that uses OpenAI's GPT model to handle weather-related queries. Note that you will need to setup the weather MCP server as a pre-requisite as specified by the [MCP Quick-start server tutorial](https://modelcontextprotocol.io/quickstart/server). You will also need to add your OpenAI API key to the .env file.
 
 ```python
 from dotenv import load_dotenv
