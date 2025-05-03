@@ -6,6 +6,11 @@
 <br>
 </div>
 
+![PyPI](https://img.shields.io/pypi/v/Smarta2a.svg)
+![PyPI - Total Downloads](https://img.shields.io/pypi/dt/Smarta2a.svg)
+![GitHub Repo stars](https://img.shields.io/github/stars/siddharthsma/smarta2a?style=social)
+![CI](https://github.com/siddharthsma/smarta2a/actions/workflows/tests.yml/badge.svg)
+
 **SmartA2A** is a Python framework that helps you build servers and AI agents that communicate using the [A2A (Agent2Agent) protocol](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/). A2A defines a common language that enables agents to exchange information and collaborate effectively across systems.
 
 SmartA2A abstracts the complexities of the protocol, so you can focus on what matters—your agent's logic and behavior. It supports two primary use cases:
@@ -38,7 +43,9 @@ SmartA2A makes it easy to build interoperable, communication-ready AI systems—
 pip install -U smarta2a
 ```
 
-## Simple Echo Server Implementation
+## Examples
+
+### Simple Echo Server Implementation
 
 Here's a simple example of an echo server that demonstrates the core features of SmartA2A:
 
@@ -123,7 +130,7 @@ curl -X POST http://localhost:8000/ \
   }'
 ```
 
-## Weather Agent Example
+### Weather Agent Example
 
 Here's an example of a weather agent that uses OpenAI's GPT model to handle weather-related queries. Note that you will need to setup the weather MCP server as a pre-requisite as specified by the [MCP Quick-start server tutorial](https://modelcontextprotocol.io/quickstart/server). You will also need to add your OpenAI API key to the .env file.
 
