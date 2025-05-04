@@ -55,6 +55,7 @@ class MCPClient:
             args=args,
             env=None
         )
+        print(server_params)
 
         # Start the server
         stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
