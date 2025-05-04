@@ -18,7 +18,7 @@ openai_provider = OpenAIProvider(
     api_key=api_key,
     model="gpt-4o-mini",
     base_system_prompt="You are a cheerful assistant that specialises in helping with airbnb related queries",
-    mcp_server_urls_or_paths=["@openbnb/mcp-server-airbnb --ignore-robots-txt"],
+    mcp_server_urls_or_paths=["@openbnb/mcp-server-airbnb --ignore-robots-txt"]
 )
 # /Users/apple/.npm/_npx/1629930a2e066932/node_modules/@openbnb/mcp-server-airbnb/dist/index.js
 

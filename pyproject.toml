@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "smarta2a"
-version = "0.3.0"
+version = "0.3.1"
 authors = [
     { name = "Siddharth Ambegaonkar", email = "siddharthsma@gmail.com" },
 ]
-description = "A simple Python framework (built on top of FastAPI) for creating Agents following Google's Agent2Agent protocol"
+description = "a Python framework that helps you build servers and AI agents that communicate using the A2A protocol"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
