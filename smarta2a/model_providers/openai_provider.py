@@ -125,7 +125,7 @@ class OpenAIProvider(BaseLLMProvider):
             openai_tools.append({
                 "type": "function",
                 "function": {
-                    "name": tool.name,
+                    "name": tool.key,
                     "description": tool.description,
                     "parameters": tool.inputSchema
                 }
