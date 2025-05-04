@@ -161,7 +161,7 @@ class OpenAIProvider(BaseLLMProvider):
                 args_raw = tc.function.arguments
             else:
                 return message.content
-
+            print(message)
             # Append the assistant's intent
             converted_messages.append({
                 "role": "assistant",
