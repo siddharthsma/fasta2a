@@ -45,7 +45,7 @@ pip install -U smarta2a
 
 There are 3 cool examples for you to try out - eacher cooler than the next! 
 
-1. The first is a simple Echo server implementation that demonstrates the FastAPI'esk style in which you can create a A2A compliant server. If you're using another Agent framework like LangGraph you can easily use it it tandem with this server.  
+1. The first is a simple Echo server implementation that demonstrates the FastAPI'esk style in which you can create an A2A compliant server. If you're using another Agent framework like LangGraph you can easily use it in tandem with this server.  
 
 2. This is where things start to get real interesting - you can easily create an LLM and MCP powered Agent in just a few lines of code. In this case a US weather agent.
 
