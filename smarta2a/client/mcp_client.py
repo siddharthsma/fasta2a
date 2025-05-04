@@ -1,5 +1,6 @@
 # Library imports
 import re
+import shlex
 from typing import Dict, Any
 from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters
@@ -40,7 +41,8 @@ class MCPClient:
         if server_script_path.startswith("@") or "/" not in server_script_path:
             # Assume it's an npm package
             is_javascript = True
-            command = "npx"
+            args = shlex.split(server_script_path)
+            command = "npx -y"
         else:
             # It's a file path
             is_python = server_script_path.endswith(".py")
