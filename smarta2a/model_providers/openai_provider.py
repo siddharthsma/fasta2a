@@ -140,7 +140,7 @@ class OpenAIProvider(BaseLLMProvider):
         # Ensure messages are Message objects
         messages = [msg if isinstance(msg, Message) else Message(**msg) for msg in messages]
         converted_messages = self._convert_messages(messages)
-        max_iterations = 10
+        max_iterations = 30
 
         for iteration in range(max_iterations):
             response = await self.client.chat.completions.create(
