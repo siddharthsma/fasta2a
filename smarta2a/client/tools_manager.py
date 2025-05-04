@@ -21,17 +21,28 @@ class ToolsManager:
             mcp_client = await MCPClient.create(url)
             tools = await mcp_client.list_tools()
             for tool in tools:
-                self.tools_list.append(tool)
-                self.clients[tool.name] = mcp_client
+                # Generate key and ensure Tool type with key
+                key = f"{url}::{tool.name}"
+                validated_tool = Tool(
+                    key=key,
+                    **tool.model_dump()  # Pydantic 2.x syntax (use .dict() for Pydantic 1.x)
+                )
+                self.tools_list.append(validated_tool)
+                self.clients[key] = mcp_client
 
     async def load_a2a_tools(self, agent_cards: List[AgentCard]) -> None:
         for agent_card in agent_cards:
             a2a_client = A2AClient(agent_card)
             tools_list = await a2a_client.list_tools()
-            tools = [Tool(**tool_dict) for tool_dict in tools_list]
-            for tool in tools:
-                self.tools_list.append(tool)
-                self.clients[tool.name] = a2a_client
+            for tool_dict in tools_list:
+                # Generate key from agent URL and tool name
+                key = f"{agent_card.url}::{tool_dict['name']}"
+                validated_tool = Tool(
+                    key=key,
+                    **tool_dict
+                )
+                self.tools_list.append(validated_tool)
+                self.clients[key] = a2a_client
 
     def get_tools(self) -> List[Any]:
         return self.tools_list
@@ -43,20 +54,24 @@ class ToolsManager:
             schema = json.dumps(tool.inputSchema, indent=2)  # Fix: use inputSchema
             if client_type == "mcp":
                 lines.append(
-                    f"- **{tool.name}**: {tool.description}\n  Parameters schema:\n  ```json\n{schema}\n```"
+                    f"- **{tool.key}**: {tool.description}\n  Parameters schema:\n  ```json\n{schema}\n```"
                 )
             elif client_type == "a2a":
                 lines.append(
-                    f"- **{tool.name}**: {tool.description}\n  Parameters schema:\n  ```json\n{schema}\n```"
+                    f"- **{tool.key}**: {tool.description}\n  Parameters schema:\n  ```json\n{schema}\n```"
                 )
 
         return "\n".join(lines)
 
-    def get_client(self, tool_name: str) -> Any:
-        return self.clients.get(tool_name)
+    def get_client(self, tool_key: str) -> Any:
+        return self.clients.get(tool_key)
 
-    async def call_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
-        client = self.get_client(tool_name)
+    async def call_tool(self, tool_key: str, args: Dict[str, Any]) -> Any:
+        client = self.get_client(tool_key)
+        tool_name = self._get_tool_name(tool_key)
         if not client:
             raise ValueError(f"Tool not found: {tool_name}")
         return await client.call_tool(tool_name, args)
+    
+    def _get_tool_name(self, tool_key: str) -> str:
+        return tool_key.split("::")[1]

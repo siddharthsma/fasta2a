@@ -484,6 +484,7 @@ class StateData(BaseModel):
     metadata: Dict[str, Any]
 
 class Tool(BaseModel):
+    key: str
     name: str
     description: str
     inputSchema: Dict[str, Any]
