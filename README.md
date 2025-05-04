@@ -93,7 +93,7 @@ def handle_cancel_task(request):
 
 This example shows:
 - Setting up a basic A2A server with state management
-- Handling synchronous task requests with text and file responses
+- Handling synchronous task requests with text responses (btw also handles files!)
 - Implementing streaming responses for subscription tasks
 - Basic task management (get and cancel operations)
 
@@ -323,7 +323,10 @@ To run the multi-agent system:
 python path/to/weather_agent/main.py
 ```
 
-2. Start the Airbnb agent: No need to do anything - just ensure that node and npx are installed on your machine
+2. Start the weather agent:
+```bash
+python path/to/airbnb_agent/main.py
+```
 
 
 3. Start the delegator agent:
