@@ -23,11 +23,21 @@ weather_agent_card = AgentCard(
             AgentSkill(id="weather_alerts", name="Weather Alerts", description="Can get weather alerts for a US state")]
 )
 
+airbnb_agent_card = AgentCard(
+    name="airbnb_agent",
+    description="An airbnb agent that can help with airbnb related queries",
+    version="0.1.0",
+    url="http://localhost:8002",
+    capabilities=AgentCapabilities(),
+    skills=[AgentSkill(id="search_listings", name="Search listings", description="Search for Airbnb listings by location, dates, guests, and more"),
+            AgentSkill(id="get_listing_details", name="Get listing details", description="Get detailed information about a specific Airbnb listing by listing id, dates, guests, and more")]
+)
+
 
 openai_provider = OpenAIProvider(
     api_key=api_key,
     model="gpt-4o-mini",
-    agent_cards=[weather_agent_card]
+    agent_cards=[weather_agent_card, airbnb_agent_card]
 )
 
 # Create the agent
@@ -38,4 +48,4 @@ agent = A2AAgent(
 
 # Entry point
 if __name__ == "__main__":
-    uvicorn.run(agent.get_app(), host="0.0.0.0", port=8080)
+    uvicorn.run(agent.get_app(), host="0.0.0.0", port=8001)

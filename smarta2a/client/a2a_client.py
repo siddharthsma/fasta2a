@@ -234,7 +234,7 @@ class A2AClient:
                 
                 properties[param_name] = schema_field
             
-            input_schema = {
+            inputSchema = {
                 "title": f"{name}_Arguments",
                 "type": "object",
                 "properties": properties,
@@ -244,7 +244,7 @@ class A2AClient:
             tools.append({
                 "name": name,
                 "description": description,
-                "inputSchema": input_schema
+                "inputSchema": inputSchema
             })
 
         return tools
