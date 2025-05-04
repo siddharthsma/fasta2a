@@ -22,7 +22,7 @@ class ToolsManager:
             tools = await mcp_client.list_tools()
             for tool in tools:
                 # Generate key and ensure Tool type with key
-                key = f"{url}::{tool.name}"
+                key = f"mcp---{tool.name}"
                 validated_tool = Tool(
                     key=key,
                     **tool.model_dump()  # Pydantic 2.x syntax (use .dict() for Pydantic 1.x)
@@ -36,7 +36,7 @@ class ToolsManager:
             tools_list = await a2a_client.list_tools()
             for tool_dict in tools_list:
                 # Generate key from agent URL and tool name
-                key = f"{agent_card.url}::{tool_dict['name']}"
+                key = f"{agent_card.name}---{tool_dict['name']}"
                 validated_tool = Tool(
                     key=key,
                     **tool_dict
@@ -74,4 +74,4 @@ class ToolsManager:
         return await client.call_tool(tool_name, args)
     
     def _get_tool_name(self, tool_key: str) -> str:
-        return tool_key.split("::")[1]
+        return tool_key.split("---")[1]
