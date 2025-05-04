@@ -42,7 +42,7 @@ class MCPClient:
             # Assume it's an npm package
             is_javascript = True
             args = shlex.split(server_script_path)
-            command = "npx -y"
+            command = "npx"
         else:
             # It's a file path
             is_python = server_script_path.endswith(".py")
