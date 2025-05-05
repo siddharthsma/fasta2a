@@ -1,6 +1,7 @@
 # Library imports
 from typing import Callable, Any, Optional, Dict, Union, List, AsyncGenerator
 import json
+import os
 from datetime import datetime
 from collections import defaultdict
 from fastapi import FastAPI, Request, HTTPException, APIRouter
@@ -8,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 from pydantic import ValidationError
 import uvicorn
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from uuid import uuid4
 
 # Local imports
@@ -65,7 +66,7 @@ from smarta2a.utils.types import (
 )
 
 class SmartA2A:
-    def __init__(self, name: str, agent_card: Optional[AgentCard] = None, state_store: Optional[BaseStateStore] = None, history_strategy: HistoryUpdateStrategy = AppendStrategy(), **fastapi_kwargs):
+    def __init__(self, name: str, agent_card: Optional[AgentCard] = None, state_store: Optional[BaseStateStore] = None, history_strategy: HistoryUpdateStrategy = AppendStrategy(), has_frontend: bool = False, **fastapi_kwargs):
         self.name = name
         self.registry = HandlerRegistry()
         self.agent_card = agent_card
@@ -74,6 +75,8 @@ class SmartA2A:
         self.router = APIRouter()
         self.state_store = state_store
         self.history_strategy = history_strategy
+        self.has_frontend = has_frontend
+        self._setup_cors()
         self._setup_routes()
         self.server_config = {
             "host": "0.0.0.0",
@@ -125,6 +128,14 @@ class SmartA2A:
             return fn
         return decorator
     
+    def _setup_cors(self):
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     def _setup_routes(self):
         @self.app.post("/rpc")    
@@ -151,6 +162,14 @@ class SmartA2A:
             async def get_agent_card():
                 """Return the agent's service description"""
                 return self.agent_card
+        
+        if self.has_frontend:
+            if not os.path.exists("frontend/index.html"):
+                raise FileNotFoundError("frontend/index.html does not exist")
+            
+            @self.app.get("/")
+            async def get_frontend():
+                return FileResponse("frontend/index.html")
     
 
     async def process_request(self, request: JSONRPCRequest) -> JSONRPCResponse:
