@@ -1,13 +1,16 @@
 # Library imports
 import json
+import httpx
 from typing import AsyncGenerator, List, Dict, Optional, Union, Any
 from openai import AsyncOpenAI
+from pydantic import HttpUrl, ValidationError
 
 # Local imports
 from smarta2a.utils.types import Message, TextPart, FilePart, DataPart, Part, AgentCard
 from smarta2a.model_providers.base_llm_provider import BaseLLMProvider
-from smarta2a.client.tools_manager import ToolsManager
+from smarta2a.utils.tools_manager import ToolsManager
 from smarta2a.utils.prompt_helpers import build_system_prompt
+from smarta2a.utils.agent_discovery_manager import AgentDiscoveryManager
 
 class OpenAIProvider(BaseLLMProvider):
     def __init__(
@@ -17,22 +20,39 @@ class OpenAIProvider(BaseLLMProvider):
         base_system_prompt: Optional[str] = None,
         mcp_server_urls_or_paths: Optional[List[str]] = None,
         agent_cards: Optional[List[AgentCard]] = None,
-        # enable_discovery: bool = False
+        agent_base_urls: Optional[List[HttpUrl]] = None,
+        discovery_endpoint: Optional[HttpUrl] = None,
+        timeout: float = 5.0,
+        retries: int = 2
     ):
         self.client = AsyncOpenAI(api_key=api_key)
         self.model = model
         self.mcp_server_urls_or_paths = mcp_server_urls_or_paths
-        self.agent_cards = agent_cards
         # Store the base system prompt; will be enriched by tool descriptions
         self.base_system_prompt = base_system_prompt
         self.supported_media_types = [
             "image/png", "image/jpeg", "image/gif", "image/webp"
         ]
+
+        # Initialize discovery manager
+        self.agent_discovery = AgentDiscoveryManager(
+            agent_cards=agent_cards,
+            agent_base_urls=agent_base_urls,
+            discovery_endpoint=discovery_endpoint,
+            timeout=timeout,
+            retries=retries
+        )
+
+        self.agent_cards: List[AgentCard] = []
         # Initialize ToolsManager 
         self.tools_manager = ToolsManager()
         
     
     async def load(self):
+        """Async initialization of resources"""
+        # Discover agents first
+        self.agent_cards = await self.agent_discovery.discover_agents()
+
         if self.mcp_server_urls_or_paths:
             await self.tools_manager.load_mcp_tools(self.mcp_server_urls_or_paths)
         

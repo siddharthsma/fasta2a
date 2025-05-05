@@ -60,13 +60,15 @@ from smarta2a.utils.types import (
     SetTaskPushNotificationResponse,
     GetTaskPushNotificationResponse,
     TaskPushNotificationConfig,
-    StateData
+    StateData,
+    AgentCard
 )
 
 class SmartA2A:
-    def __init__(self, name: str, state_store: Optional[BaseStateStore] = None, history_strategy: HistoryUpdateStrategy = AppendStrategy(), **fastapi_kwargs):
+    def __init__(self, name: str, agent_card: Optional[AgentCard] = None, state_store: Optional[BaseStateStore] = None, history_strategy: HistoryUpdateStrategy = AppendStrategy(), **fastapi_kwargs):
         self.name = name
         self.registry = HandlerRegistry()
+        self.agent_card = agent_card
         self.state_mgr = StateManager(state_store, history_strategy)
         self.app = FastAPI(title=name, **fastapi_kwargs)
         self.router = APIRouter()
@@ -125,7 +127,7 @@ class SmartA2A:
     
 
     def _setup_routes(self):
-        @self.app.post("/")    
+        @self.app.post("/rpc")    
         async def handle_request(request: Request):
             try:
                 data = await request.json()
@@ -142,6 +144,13 @@ class SmartA2A:
 
             # <-- Everything else is a normal pydantic JSONRPCResponse
             return response.model_dump()
+        
+        # Add agent.json endpoint if card exists
+        if self.agent_card is not None:
+            @self.app.get("/.well-known/agent.json", response_model=AgentCard)
+            async def get_agent_card():
+                """Return the agent's service description"""
+                return self.agent_card
     
 
     async def process_request(self, request: JSONRPCRequest) -> JSONRPCResponse:

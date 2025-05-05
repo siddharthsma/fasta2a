@@ -4,7 +4,7 @@ import os
 import uvicorn
 from smarta2a.agent.a2a_agent import A2AAgent
 from smarta2a.model_providers.openai_provider import OpenAIProvider
-
+from smarta2a.utils.types import AgentCard, AgentCapabilities, AgentSkill
 
 
 # Load environment variables from the .env file
@@ -13,6 +13,15 @@ load_dotenv()
 # Fetch the value using os.getenv
 api_key = os.getenv("OPENAI_API_KEY")
 
+airbnb_agent_card = AgentCard(
+    name="airbnb_agent",
+    description="An airbnb agent that can help with airbnb related queries",
+    version="0.1.0",
+    url="http://localhost:8002",
+    capabilities=AgentCapabilities(),
+    skills=[AgentSkill(id="search_listings", name="Search listings", description="Search for Airbnb listings by location, dates, guests, and more"),
+            AgentSkill(id="get_listing_details", name="Get listing details", description="Get detailed information about a specific Airbnb listing by listing id, dates, guests, and more")]
+)
 
 openai_provider = OpenAIProvider(
     api_key=api_key,
@@ -26,6 +35,7 @@ openai_provider = OpenAIProvider(
 agent = A2AAgent(
     name="openai_agent",
     model_provider=openai_provider,
+    agent_card=airbnb_agent_card
 )
 
 # Entry point

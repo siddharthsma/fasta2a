@@ -8,13 +8,14 @@ from smarta2a.history_update_strategies.history_update_strategy import HistoryUp
 from smarta2a.history_update_strategies.append_strategy import AppendStrategy
 from smarta2a.state_stores.base_state_store import BaseStateStore
 from smarta2a.state_stores.inmemory_state_store import InMemoryStateStore
-from smarta2a.utils.types import StateData, SendTaskRequest
+from smarta2a.utils.types import StateData, SendTaskRequest, AgentCard
 
 class A2AAgent:
     def __init__(
             self,
             name: str,
             model_provider: BaseLLMProvider,
+            agent_card: AgentCard = None,
             history_update_strategy: HistoryUpdateStrategy = None,
             state_store: BaseStateStore = None,
         ):
@@ -23,6 +24,7 @@ class A2AAgent:
         self.state_store = state_store or InMemoryStateStore()
         self.app = SmartA2A(
             name=name,
+            agent_card=agent_card,
             history_update_strategy=self.history_update_strategy,
             state_store=self.state_store
         )

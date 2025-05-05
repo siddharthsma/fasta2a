@@ -13,31 +13,15 @@ load_dotenv()
 # Fetch the value using os.getenv
 api_key = os.getenv("OPENAI_API_KEY")
 
-weather_agent_card = AgentCard(
-    name="weather_agent",
-    description="A weather agent that can help with weather related queries",
-    version="0.1.0",
-    url="http://localhost:8000",
-    capabilities=AgentCapabilities(),
-    skills=[AgentSkill(id="weather_forecasting", name="Weather Forecasting", description="Can get weather forecast for a given latitude and longitude"),
-            AgentSkill(id="weather_alerts", name="Weather Alerts", description="Can get weather alerts for a US state")]
-)
+weather_agent_url = "http://localhost:8000"
 
-airbnb_agent_card = AgentCard(
-    name="airbnb_agent",
-    description="An airbnb agent that can help with airbnb related queries",
-    version="0.1.0",
-    url="http://localhost:8002",
-    capabilities=AgentCapabilities(),
-    skills=[AgentSkill(id="search_listings", name="Search listings", description="Search for Airbnb listings by location, dates, guests, and more"),
-            AgentSkill(id="get_listing_details", name="Get listing details", description="Get detailed information about a specific Airbnb listing by listing id, dates, guests, and more")]
-)
+airbnb_agent_url = "http://localhost:8002"
 
 
 openai_provider = OpenAIProvider(
     api_key=api_key,
     model="gpt-4o-mini",
-    agent_cards=[weather_agent_card, airbnb_agent_card]
+    agent_base_urls=[weather_agent_url, airbnb_agent_url]
 )
 
 # Create the agent
