@@ -108,10 +108,10 @@ class AgentDiscoveryManager:
                 raise ValueError(f"Unexpected Content-Type: {content_type}")
                 
             data = response.json()
-            
-            # Add base_url if not present
-            if "base_url" not in data:
-                data["base_url"] = str(response.url).replace('/.well-known/agent.json', '')
+
+            # Enforce required 'url' field
+            if "url" not in data:
+                raise ValueError("AgentCard requires 'url' field in agent.json")
                 
             return AgentCard(**data)
             

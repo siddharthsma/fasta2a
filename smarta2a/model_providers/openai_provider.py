@@ -219,19 +219,21 @@ class OpenAIProvider(BaseLLMProvider):
         raise RuntimeError("Max tool iteration depth reached in generate().")
 
 
-
-    async def generate_stream(
-        self, messages: List[Message], **kwargs
-    ) -> AsyncGenerator[str, None]:
+    async def generate_stream(self, messages: List[Union[Message, Dict[str, Any]]], **kwargs) -> AsyncGenerator[str, None]:
         """
-        Stream response chunks, handling tool calls when complete.
+        Stream response chunks, invoking tools as needed.
         """
-        # Prepare messages including dynamic system prompt
-        converted_messages = self._convert_messages(messages)
-        max_iterations = 10
+        # Normalize incoming messages to your Message model
+        msgs = [
+            msg if isinstance(msg, Message) else Message(**msg)
+            for msg in messages
+        ]
+        # Convert to OpenAI schema, including any prior tool results
+        converted_messages = self._convert_messages(msgs)
+        max_iterations = 30
 
         for _ in range(max_iterations):
-            # Start streaming completion with function-call support
+            # Kick off the streaming completion
             stream = await self.client.chat.completions.create(
                 model=self.model,
                 messages=converted_messages,
@@ -241,25 +243,28 @@ class OpenAIProvider(BaseLLMProvider):
                 **kwargs
             )
 
-            full_content = []
+            full_content = ""
             tool_calls: List[Dict[str, Any]] = []
 
-            # Collect streamed tokens and tool call deltas
+            # As chunks arrive, yield them and collect any tool_call deltas
             async for chunk in stream:
                 delta = chunk.choices[0].delta
-                # Yield text content immediately
-                if hasattr(delta, 'content') and delta.content:
-                    full_content.append(delta.content)
-                    yield delta.content
 
-                # Accumulate tool call metadata
-                if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                # 1) Stream content immediately
+                if hasattr(delta, "content") and delta.content:
+                    yield delta.content
+                    full_content += delta.content
+
+                # 2) Buffer up any function/tool calls for after the stream
+                if hasattr(delta, "tool_calls") and delta.tool_calls:
                     for d in delta.tool_calls:
                         idx = d.index
-                        # Ensure sufficient list length
+                        # Ensure list is long enough
                         while len(tool_calls) <= idx:
-                            tool_calls.append({"id": "", "function": {"name": "", "arguments": ""}})
-                        # Assign fields if present
+                            tool_calls.append({
+                                "id": "",
+                                "function": {"name": "", "arguments": ""}
+                            })
                         if d.id:
                             tool_calls[idx]["id"] = d.id
                         if d.function.name:
@@ -267,35 +272,39 @@ class OpenAIProvider(BaseLLMProvider):
                         if d.function.arguments:
                             tool_calls[idx]["function"]["arguments"] += d.function.arguments
 
-            # If no tool calls were invoked, stream is complete
+            # If the assistant didn't invoke any tools, we're done
             if not tool_calls:
                 return
 
-            # Append completed assistant message with tool calls
+            # Otherwise, append the assistant's outgoing call and loop for tool execution
             converted_messages.append({
                 "role": "assistant",
-                "content": "".join(full_content),
+                "content": full_content,
                 "tool_calls": [
-                    {"id": tc["id"],
-                     "type": "function",
-                     "function": {"name": tc["function"]["name"],
-                                   "arguments": tc["function"]["arguments"]}
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["function"]["name"],
+                            "arguments": tc["function"]["arguments"]
+                        }
                     }
                     for tc in tool_calls
                 ]
             })
 
-            # Execute each tool call and append responses
+            # Execute each tool in turn and append its result
             for tc in tool_calls:
                 name = tc["function"]["name"]
                 try:
-                    args = json.loads(tc["function"]["arguments"])
+                    args = json.loads(tc["function"]["arguments"] or "{}")
                 except json.JSONDecodeError:
                     args = {}
-
                 try:
-                    result = await self.tools_manager.call_tool(name, args)
-                    result_content = result.content
+                    tool_res = await self.tools_manager.call_tool(name, args)
+                    result_content = getattr(tool_res, "content", None) or (
+                        tool_res.get("content") if isinstance(tool_res, dict) else str(tool_res)
+                    )
                 except Exception as e:
                     result_content = f"Error executing {name}: {e}"
 
@@ -304,5 +313,9 @@ class OpenAIProvider(BaseLLMProvider):
                     "content": result_content,
                     "tool_call_id": tc["id"]
                 })
-        # If iterations exhausted without final completion
+
         raise RuntimeError("Max tool iteration depth reached in generate_stream().")
+
+
+
+    

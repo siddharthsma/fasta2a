@@ -18,7 +18,7 @@ weather_agent_card = AgentCard(
     name="weather_agent",
     description="A weather agent that can help with weather related queries",
     version="0.1.0",
-    url="http://localhost:8000",
+    url="http://localhost:8000/rpc",
     capabilities=AgentCapabilities(),
     skills=[AgentSkill(id="weather_forecasting", name="Weather Forecasting", description="Can get weather forecast for a given latitude and longitude"),
             AgentSkill(id="weather_alerts", name="Weather Alerts", description="Can get weather alerts for a US state")]
