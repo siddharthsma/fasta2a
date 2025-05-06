@@ -479,9 +479,9 @@ class A2AStreamResponse(BaseModel):
     metadata: dict[str, Any] | None = None
 
 class StateData(BaseModel):
-    sessionId: str
-    history: List[Message]
-    metadata: Dict[str, Any]
+    task_id: str
+    task: Task
+    context_history: List[Message]
 
 class Tool(BaseModel):
     key: str

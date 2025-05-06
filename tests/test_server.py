@@ -55,14 +55,14 @@ async def cleanup():
 def test_send_task(client, a2a_server):
     # Register task handler correctly
     @a2a_server.on_send_task()
-    def handle_task(request: SendTaskRequest):
+    async def handle_task(request: SendTaskRequest):
         return A2AResponse(
             status="completed",
             content="Hello, World!"
         )
 
     # Send valid request with required fields
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": "1",
         "method": "tasks/send",
@@ -88,11 +88,11 @@ def test_send_task(client, a2a_server):
 def test_send_task_with_string_response(client, a2a_server):
     # Register task handler correctly
     @a2a_server.on_send_task()
-    def handle_task(request: SendTaskRequest):
+    async def handle_task(request: SendTaskRequest):
         return "Hello, World!"
 
     # Send valid request with required fields
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": "1",
         "method": "tasks/send",
@@ -117,14 +117,14 @@ def test_send_task_with_string_response(client, a2a_server):
 def test_send_task_with_artifact(client, a2a_server):
     # Test handler returning raw protocol types
     @a2a_server.on_send_task()
-    def handle_task(request: SendTaskRequest) -> Artifact:
+    async def handle_task(request: SendTaskRequest) -> Artifact:
         return Artifact(
             parts=[TextPart(text="Direct result")],
             name="test-artifact",
             description="Created directly"
         )
 
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": "1",
         "method": "tasks/send",
@@ -149,7 +149,7 @@ def test_send_task_with_artifact(client, a2a_server):
 def test_send_task_direct_response(client, a2a_server):
     # Test handler returning fully constructed SendTaskResponse
     @a2a_server.on_send_task()
-    def handle_task(request: SendTaskRequest) -> SendTaskResponse:
+    async def handle_task(request: SendTaskRequest) -> SendTaskResponse:
         return SendTaskResponse(
             id=request.id,
             result=Task(
@@ -173,7 +173,7 @@ def test_send_task_direct_response(client, a2a_server):
         )
 
     # Send request
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": "direct-response-test",
         "method": "tasks/send",
@@ -227,7 +227,7 @@ def test_get_task_with_task(client, a2a_server):
         )
 
     # Test get request
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": "2",
         "method": "tasks/get",
@@ -252,7 +252,7 @@ def test_get_task_with_string(client, a2a_server):
         return "Test artifact"
 
     # Test get request
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": "2",
         "method": "tasks/get",
@@ -284,7 +284,7 @@ def test_successful_cancellation(client, a2a_server):
             )
         )
 
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": "cancel-1",
         "method": "tasks/cancel",
@@ -310,7 +310,7 @@ def test_cancellation_with_a2astatus(client, a2a_server):
             }
         )
 
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": "cancel-2",
         "method": "tasks/cancel",
@@ -353,7 +353,7 @@ def test_send_subscribe_with_direct_events(client, a2a_server):
             print(f"Error in handler: {str(e)}")
 
     response = client.post(
-        "/",
+        "/rpc",
         json={
             "jsonrpc": "2.0",
             "id": "2",
@@ -383,7 +383,6 @@ def test_send_subscribe_with_direct_events(client, a2a_server):
         del response
 
     assert len(events) == 3
-    
     # Verify first event (status update)
     assert events[0]["result"]["status"]["state"] == "working"
     
@@ -407,7 +406,7 @@ def test_send_subscribe_task(client, a2a_server):
 
     # Send subscription request
     response = client.post(
-        "/",
+        "/rpc",
         json={
             "jsonrpc": "2.0",
             "id": "3",
@@ -523,7 +522,7 @@ def test_set_notification_success(a2a_server, client):
         }
     }
     
-    response = client.post("/", json=request_data).json()
+    response = client.post("/rpc", json=request_data).json()
     
     assert response["result"]["id"] == "test123"
     assert response["result"]["pushNotificationConfig"]["url"] == request_data["params"]["pushNotificationConfig"]["url"]
@@ -544,7 +543,7 @@ def test_set_notification_custom_response(a2a_server, client):
             )
         )
     
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": 2,
         "method": "tasks/pushNotification/set",
@@ -579,7 +578,7 @@ def test_get_notification_success(a2a_server, client):
         "params": {"id": "test456"}
     }
     
-    response = client.post("/", json=request_data).json()
+    response = client.post("/rpc", json=request_data).json()
     
     assert response["result"]["id"] == "test456"
     assert response["result"]["pushNotificationConfig"]["url"] == "https://test.com"
@@ -599,13 +598,14 @@ def test_get_notification_direct_response(a2a_server, client):
             )
         )
     
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": 5,
         "method": "tasks/pushNotification/get",
         "params": {"id": "test789"}
     }).json()
     
+    print(response)
     assert "direct-response" in response["result"]["pushNotificationConfig"]["url"]
     assert "basic" in response["result"]["pushNotificationConfig"]["authentication"]["schemes"]
 
@@ -615,7 +615,7 @@ def test_get_notification_validation_error(a2a_server, client):
     def handle_get(req):
         return {"invalid": "config"}
     
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": 6,
         "method": "tasks/pushNotification/get",
@@ -631,7 +631,7 @@ def test_get_notification_error_propagation(a2a_server, client):
     def handle_get(req):
         raise InternalError(message="Storage failure")
     
-    response = client.post("/", json={
+    response = client.post("/rpc", json={
         "jsonrpc": "2.0",
         "id": 7,
         "method": "tasks/pushNotification/get",

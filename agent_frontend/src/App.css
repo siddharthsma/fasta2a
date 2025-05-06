@@ -237,3 +237,46 @@ button[type="submit"]:hover {
   border: 1px solid #ddd;
   padding: 0.5rem;
 }
+
+
+.loading-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 1rem;
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: #888;
+  animation: bounce 1.4s infinite ease-in-out;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% { 
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-0.5rem);
+  }
+}
+
+.chat-item.active {
+  background-color: #343541;
+  border: 1px solid #565869;
+}
+
+.chat-item {
+  /* Add transition for smooth hover effect */
+  transition: background-color 0.2s ease;
+}

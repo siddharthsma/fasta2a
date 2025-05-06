@@ -16,6 +16,7 @@ from uuid import uuid4
 from smarta2a.server.handler_registry import HandlerRegistry
 from smarta2a.server.state_manager import StateManager
 from smarta2a.state_stores.base_state_store import BaseStateStore
+from smarta2a.state_stores.inmemory_state_store import InMemoryStateStore
 from smarta2a.history_update_strategies.history_update_strategy import HistoryUpdateStrategy
 from smarta2a.history_update_strategies.append_strategy import AppendStrategy
 from smarta2a.utils.task_builder import TaskBuilder
@@ -66,7 +67,7 @@ from smarta2a.utils.types import (
 )
 
 class SmartA2A:
-    def __init__(self, name: str, agent_card: Optional[AgentCard] = None, state_store: Optional[BaseStateStore] = None, history_strategy: HistoryUpdateStrategy = AppendStrategy(), has_frontend: bool = False, **fastapi_kwargs):
+    def __init__(self, name: str, agent_card: Optional[AgentCard] = None, state_store: Optional[BaseStateStore] = None, history_strategy: Optional[HistoryUpdateStrategy] = AppendStrategy(), has_frontend: bool = False, **fastapi_kwargs):
         self.name = name
         self.registry = HandlerRegistry()
         self.agent_card = agent_card
@@ -97,13 +98,13 @@ class SmartA2A:
             self.registry.register("tasks/send", func)
             return func
         return decorator
-    
+
     def on_send_subscribe_task(self):
         def decorator(fn: Callable[[SendTaskStreamingRequest, Optional[StateData]], Any]):
             self.registry.register("tasks/sendSubscribe", fn, subscription=True)
             return fn
         return decorator
-    
+
     def task_get(self):
         def decorator(fn: Callable[[GetTaskRequest], Any]):
             self.registry.register("tasks/get", fn)
@@ -146,7 +147,7 @@ class SmartA2A:
                 #request_obj = JSONRPCRequest(**data)
             except Exception as e:
                 return JSONRPCResponse(id=None, error=JSONRPCError(code=-32700, message="Parse error", data=str(e))).model_dump()
-                
+
             response = await self.process_request(req)
 
             # <-- Accept both SSE‐style responses:
@@ -179,13 +180,21 @@ class SmartA2A:
             params = request.params
             state_store = self.state_mgr.get_store()
             if method == "tasks/send":
-                state_data = self.state_mgr.init_or_get(params.get("sessionId"), params.get("message"), params.get("metadata") or {})
+                task_id = params.get("id")
+                session_id = params.get("sessionId")
+                message = params.get("message")
+                metadata = params.get("metadata") or {}
+                state_data = self.state_mgr.init_or_get(task_id, session_id, message, metadata)
                 if state_store:
                     return await self._handle_send_task(request, state_data)
                 else:
                     return await self._handle_send_task(request)
             elif method == "tasks/sendSubscribe":
-                state_data = self.state_mgr.init_or_get(params.get("sessionId"), params.get("message"), params.get("metadata") or {})
+                task_id = params.get("id")
+                session_id = params.get("sessionId")
+                message = params.get("message")
+                metadata = params.get("metadata") or {}
+                state_data = self.state_mgr.init_or_get(task_id, session_id, message, metadata)
                 if state_store:
                     return await self._handle_subscribe_task(request, state_data)
                 else:
@@ -219,15 +228,26 @@ class SmartA2A:
                     error=MethodNotFoundError()
                 )
             
-            user_message = request.params.message
+            raw = request.params.message
+            user_message = Message.model_validate(raw)
             request_metadata = request.params.metadata or {}
+            task_id = request.params.id
+            session_id = request.params.sessionId or str(uuid4())
             if state_data:
-                session_id = state_data.sessionId
-                existing_history = state_data.history.copy() or []
-                metadata = state_data.metadata or {} # Request metadata has already been merged so need to do it here
+                task = state_data.task
+                task_history = task.history.copy() or []
+                context_history = state_data.context_history.copy() or []
+                metadata = state_data.task.metadata or {} # Request metadata has already been merged so no need to do it here
             else:
-                session_id = request.params.sessionId or str(uuid4())
-                existing_history = [user_message]
+                task = Task(
+                    id=task_id,
+                    sessionId=session_id,
+                    status=TaskStatus(state=TaskState.WORKING),
+                    history=[user_message],
+                    metadata=request_metadata
+                )
+                task_history = task.history.copy() 
+                context_history = [user_message]
                 metadata = request_metadata
 
 
@@ -245,10 +265,10 @@ class SmartA2A:
                 # Build task with updated history (before agent response)
                 task = self.task_builder.build(
                     content=raw_result,
-                    task_id=request.params.id,
+                    task_id=task_id,
                     session_id=session_id,  # Always use generated session ID
                     metadata=metadata,  # Use merged metadata
-                    history=existing_history  # History
+                    history=task_history  # History
                 )
 
                 # Process messages through strategy
@@ -262,21 +282,26 @@ class SmartA2A:
                     )
                     messages.append(agent_message)
 
-                final_history = self.history_strategy.update_history(
-                    existing_history=existing_history,
+                # Update Task history with a simple append
+                task_history.extend(messages)
+
+                # Update context history with a strategy - this is the history that will be passed to an LLM call
+                context_history = self.history_strategy.update_history(
+                    existing_history=context_history,
                     new_messages=messages
                 )
 
                 # Update task with final state
-                task.history = final_history
+                task.history = task_history
 
                 # State store update (if enabled)
                 if self.state_store:
                     self.state_store.update_state(
-                        session_id=session_id,
+                        task_id=task_id,
                         state_data=StateData(
-                            sessionId=session_id,
-                            history=final_history,
+                            task_id=task_id,
+                            task=task,
+                            context_history=context_history,
                             metadata=metadata  # Use merged metadata
                         )
                     )
@@ -300,12 +325,12 @@ class SmartA2A:
 
         except ValidationError as e:
             return SendTaskResponse(
-                id=request_data.get("id"),
+                id=request_data.id,
                 error=InvalidRequestError(data=e.errors())
             )
         except json.JSONDecodeError as e:
             return SendTaskResponse(
-                id=request_data.get("id"),
+                id=request_data.id,
                 error=JSONParseError(data=str(e))
             )
 
@@ -323,15 +348,27 @@ class SmartA2A:
                     error=MethodNotFoundError()
                 )
             
-            user_message = request.params.message
+            raw = request.params.message
+            user_message = Message.model_validate(raw)
             request_metadata = request.params.metadata or {}
+            task_id = request.params.id
+            session_id = request.params.sessionId or str(uuid4())
             if state_data:
-                session_id = state_data.sessionId
-                existing_history = state_data.history.copy() or []
-                metadata = state_data.metadata or {} # Request metadata has already been merged so need to do it here
+                task = state_data.task
+                task_history = task.history.copy() or []
+                context_history = state_data.context_history.copy() or []
+                metadata = state_data.task.metadata or {} # Request metadata has already been merged so no need to do it here
             else:
-                session_id = request.params.sessionId or str(uuid4())
-                existing_history = [user_message]
+                task = Task(
+                    id=task_id,
+                    sessionId=session_id,
+                    status=TaskStatus(state=TaskState.WORKING),
+                    artifacts=[],
+                    history=[user_message],
+                    metadata=request_metadata
+                )
+                task_history = task.history.copy() 
+                context_history = [user_message]
                 metadata = request_metadata
 
 
@@ -347,7 +384,8 @@ class SmartA2A:
                     normalized_events = self._normalize_subscription_events(request.params, raw_events)
 
                     # Initialize streaming state
-                    stream_history = existing_history.copy()
+                    task_stream_history = task_history.copy()
+                    context_stream_history = context_history.copy()
                     stream_metadata = metadata.copy()
 
                     async for item in normalized_events:
@@ -362,9 +400,12 @@ class SmartA2A:
                                     metadata=item.artifact.metadata
                                 )
                                 
-                                # Update history using strategy
-                                new_history = self.history_strategy.update_history(
-                                    existing_history=stream_history,
+                                # Update task history with a simple append
+                                new_task_history = task_stream_history + [agent_message]
+
+                                # Update contexthistory using strategy
+                                new_context_history = self.history_strategy.update_history(
+                                    existing_history=context_stream_history,
                                     new_messages=[agent_message]
                                 )
                                 
@@ -374,28 +415,53 @@ class SmartA2A:
                                     **(item.artifact.metadata or {})
                                 }
 
+                                # Update task with new artifact and metadata
+                                task.artifacts.append(item.artifact)
+                                task.metadata = new_metadata
+                                task.history = new_task_history
+
                                 # Update state store if configured
                                 if self.state_store:
                                     self.state_store.update_state(
-                                        session_id=session_id,
+                                        task_id=task_id,
                                         state_data=StateData(
-                                            sessionId=session_id,
-                                            history=new_history,
-                                            metadata=new_metadata
+                                            task_id=task_id,
+                                            task=task,
+                                            context_history=new_context_history,
                                         )
                                     )
 
                                 # Update streaming state
-                                stream_history = new_history
+                                task_stream_history = new_task_history
+                                context_stream_history = new_context_history
                                 stream_metadata = new_metadata
 
                                 
-                            if isinstance(item, SendTaskStreamingResponse):
-                                yield item.model_dump_json()
-                                continue
+                            elif isinstance(item, TaskStatusUpdateEvent):
+                                task.status = item.status
+
+                                # Merge metadata
+                                new_metadata = {
+                                    **stream_metadata   
+                                }
+
+                                # Update task with new status and metadata
+                                task.status = item.status
+                                task.metadata = new_metadata
+
+                                # Update state store if configured
+                                if self.state_store:
+                                    self.state_store.update_state(
+                                        task_id=task_id,
+                                        state_data=StateData(
+                                            task_id=task_id,
+                                            task=task,
+                                            context_history=context_stream_history
+                                        )
+                                    )
 
                             # Add validation for proper event types
-                            if not isinstance(item, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
+                            else:
                                 raise ValueError(f"Invalid event type: {type(item).__name__}")
 
                             yield SendTaskStreamingResponse(
@@ -436,25 +502,25 @@ class SmartA2A:
         except ValidationError as e:
             return SendTaskStreamingResponse(
                 jsonrpc="2.0",
-                id=request_data.get("id"),
+                id=request_data.id,
                 error=InvalidRequestError(data=e.errors())
             )
         except json.JSONDecodeError as e:
             return SendTaskStreamingResponse(
                 jsonrpc="2.0",
-                id=request_data.get("id"),
+                id=request_data.id,
                 error=JSONParseError(data=str(e))
             )
         except HTTPException as e:
             if e.status_code == 405:
                 return SendTaskStreamingResponse(
                     jsonrpc="2.0",
-                    id=request_data.get("id"),
+                    id=request_data.id,
                     error=UnsupportedOperationError()
                 )
             return SendTaskStreamingResponse(
                 jsonrpc="2.0",
-                id=request_data.get("id"),
+                id=request_data.id,
                 error=InternalError(data=str(e))
             )
 
@@ -667,12 +733,12 @@ class SmartA2A:
 
         except ValidationError as e:
             return GetTaskPushNotificationResponse(
-                id=request_data.get("id"),
+                id=request.id,
                 error=InvalidRequestError(data=e.errors())
             )
         except json.JSONDecodeError as e:
             return GetTaskPushNotificationResponse(
-                id=request_data.get("id"),
+                id=request.id,
                 error=JSONParseError(data=str(e))
             )
 

@@ -8,7 +8,7 @@ from smarta2a.history_update_strategies.history_update_strategy import HistoryUp
 from smarta2a.history_update_strategies.append_strategy import AppendStrategy
 from smarta2a.state_stores.base_state_store import BaseStateStore
 from smarta2a.state_stores.inmemory_state_store import InMemoryStateStore
-from smarta2a.utils.types import StateData, SendTaskRequest, AgentCard
+from smarta2a.utils.types import StateData, SendTaskRequest, AgentCard, GetTaskRequest, CancelTaskRequest, TaskState
 
 class A2AAgent:
     def __init__(
@@ -37,9 +37,19 @@ class A2AAgent:
 
         @self.app.on_send_task()
         async def on_send_task(request: SendTaskRequest, state: StateData):
-            response = await self.model_provider.generate(state.history)
+            response = await self.model_provider.generate(state.context_history)
             return response
         
+        @self.app.task_get()
+        async def on_task_get(request: GetTaskRequest, state: StateData):
+            return state.task
+        
+        @self.app.task_cancel()
+        async def on_task_cancel(request: CancelTaskRequest, state: StateData):
+            task = state.task
+            task.status.state = TaskState.CANCELED
+            return task
+
     def get_app(self):
         return self.app
 

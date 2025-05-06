@@ -10,12 +10,12 @@ class InMemoryStateStore(BaseStateStore):
     def __init__(self):
         self.states: Dict[str, StateData] = {}
     
-    def get_state(self, session_id: str) -> Optional[StateData]:
-        return self.states.get(session_id)
+    def get_state(self, task_id: str) -> Optional[StateData]:
+        return self.states.get(task_id)
     
-    def update_state(self, session_id: str, state_data: StateData):
-        self.states[session_id] = state_data
+    def update_state(self, task_id: str, state_data: StateData):
+        self.states[task_id] = state_data
     
-    def delete_state(self, session_id: str):
-        if session_id in self.states:
-            del self.states[session_id]
+    def delete_state(self, task_id: str):
+        if task_id in self.states:
+            del self.states[task_id]

@@ -29,8 +29,9 @@ class TaskService:
         if not handler:
             return SendTaskResponse(id=request.id, error=MethodNotFoundError())
 
-        session_id = state.sessionId if state else request.params.sessionId or str(uuid4())
-        history = state.history.copy() if state else [request.params.message]
+        task_id = state.task_id if state else request.params.id or str(uuid4())
+        context_history = state.context_history.copy() if state else [request.params.message]
+        task_history = state.task_history.copy() if state else [request.params.message]
         metadata = state.metadata.copy() if state else (request.params.metadata or {})
 
         try:
@@ -40,18 +41,26 @@ class TaskService:
 
             task = self.builder.build(
                 content=raw,
-                task_id=request.params.id,
-                session_id=session_id,
+                task_id=task_id,
+                session_id=task_id,  # Use task_id as session_id for backward compatibility
                 metadata=metadata,
-                history=history
+                history=context_history  # Use context_history for task history
             )
 
             if task.artifacts:
                 parts = [p for a in task.artifacts for p in a.parts]
                 agent_msg = Message(role="agent", parts=parts, metadata=task.metadata)
-                new_hist = self.state_mgr.strategy.update_history(history, [agent_msg])
-                task.history = new_hist
-                self.state_mgr.update(StateData(sessionId=session_id, history=new_hist, metadata=metadata))
+                # Update task history (always append)
+                task_history.append(agent_msg)
+                # Update context history using strategy
+                new_context_history = self.state_mgr.strategy.update_history(context_history, [agent_msg])
+                task.history = new_context_history  # Use context_history for task history
+                self.state_mgr.update(StateData(
+                    task_id=task_id,
+                    context_history=new_context_history,
+                    task_history=task_history,
+                    metadata=metadata
+                ))
 
             return SendTaskResponse(id=request.id, result=task)
         except JSONRPCError as e:
