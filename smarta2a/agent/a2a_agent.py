@@ -1,5 +1,7 @@
 # Library imports
-
+from fastapi import Query
+from fastapi.responses import JSONResponse
+from typing import Optional
 
 # Local imports
 from smarta2a.server import SmartA2A
@@ -34,7 +36,12 @@ class A2AAgent:
         @self.app.on_event("startup")
         async def on_startup():
             await self.model_provider.load()
-
+        
+        @self.app.app.get("/tasks")
+        async def get_tasks(fields: Optional[str] = Query(None)):
+            tasks_data = self.state_store.get_all_tasks(fields)
+            return JSONResponse(content=tasks_data)
+        
         @self.app.on_send_task()
         async def on_send_task(request: SendTaskRequest, state: StateData):
             response = await self.model_provider.generate(state.context_history)

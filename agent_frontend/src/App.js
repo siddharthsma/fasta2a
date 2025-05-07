@@ -26,9 +26,27 @@ function App() {
     e.preventDefault();
     if (!input.trim()) return;
 
+    setInput(''); // Clear IMMEDIATELY here
+
     let tempAgentMessage;
   
     try {
+      let sessionId   = currentSessionId;
+      let taskId      = currentTaskId;   // ← declared in the outer scope
+      let metadata    = {};
+      let isNewSession = false;
+
+       // Create new chat session if needed
+       if (!sessionId) {
+        isNewSession = true;
+        sessionId = uuidv4();
+        taskId = uuidv4(); // Generate separate task ID
+        metadata.title = truncateTitle(input);
+
+        setCurrentSessionId(sessionId);
+        setCurrentTaskId(taskId); // Set the new task ID
+      }
+
       const userMessage = {
         id: Date.now(),
         role: 'user',
@@ -36,20 +54,6 @@ function App() {
         status: 'complete',
         timestamp: new Date()
       };
-  
-      let sessionId = currentSessionId;
-      let metadata = {};
-      let isNewSession = false;
-  
-      // Create new chat session if needed
-      if (!sessionId) {
-        isNewSession = true;
-        sessionId = uuidv4();
-        const taskId = uuidv4(); // Generate separate task ID
-        metadata.title = truncateTitle(input);
-        setCurrentSessionId(sessionId);
-        setCurrentTaskId(taskId); // Set the new task ID
-      }
   
       // Add user message immediately
       setMessages(prev => [...prev, userMessage]);
@@ -70,9 +74,10 @@ function App() {
       const requestBody = buildSendRequest(
         input,
         sessionId,
-        currentTaskId, // Use the correct task ID
+        taskId,
         metadata
       );
+
       const response = await fetch(API_CONFIG.BASE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,7 +115,7 @@ function App() {
       }
         
   
-      setInput('');
+      
     } catch (error) {
     if (tempAgentMessage) { // Add safety check
       setMessages(prev => prev.map(msg => {
@@ -124,6 +129,9 @@ function App() {
         return msg;
       }));
     }
+  } finally {
+    // This will ALWAYS run (success or error)
+    setInput('');  // <-- Moved here
   }
 };
   
@@ -174,7 +182,6 @@ const handleChatSelect = async (chat) => {
     setActiveChat(chat.id);
 
   } catch (error) {
-    console.error('Error loading chat:', error);
     setMessages([{
       id: Date.now(),
       role: 'system',
@@ -194,7 +201,7 @@ const handleChatSelect = async (chat) => {
         </div>
         
         <button className="new-chat-btn" onClick={handleNewChat}>
-          + New Chat
+          + New Task
         </button>
         
         <div className="chat-history">

@@ -164,6 +164,7 @@ class SmartA2A:
                 """Return the agent's service description"""
                 return self.agent_card
         
+        '''
         if self.has_frontend:
             if not os.path.exists("frontend/index.html"):
                 raise FileNotFoundError("frontend/index.html does not exist")
@@ -171,6 +172,7 @@ class SmartA2A:
             @self.app.get("/")
             async def get_frontend():
                 return FileResponse("frontend/index.html")
+        '''
     
 
     async def process_request(self, request: JSONRPCRequest) -> JSONRPCResponse:

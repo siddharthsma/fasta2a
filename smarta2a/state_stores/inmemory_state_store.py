@@ -19,3 +19,14 @@ class InMemoryStateStore(BaseStateStore):
     def delete_state(self, task_id: str):
         if task_id in self.states:
             del self.states[task_id]
+    
+    def get_all_tasks(self, fields: Optional[str] = None) -> List[Dict[str, Any]]:
+        all_tasks = [state_data.task.model_dump() for state_data in self.states.values()]
+        if fields:
+            requested_fields = fields.split(",")
+            fields_filtered_tasks = [
+                {field: task[field] for field in requested_fields if field in task}
+                for task in all_tasks
+            ]
+            return fields_filtered_tasks
+        return all_tasks
