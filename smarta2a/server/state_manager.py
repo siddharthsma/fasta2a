@@ -8,7 +8,7 @@ from smarta2a.history_update_strategies.history_update_strategy import HistoryUp
 from smarta2a.utils.types import Message, StateData, Task, TaskStatus, TaskState
 
 class StateManager:
-    def __init__(self, store: Optional[BaseStateStore], history_strategy: HistoryUpdateStrategy):
+    def __init__(self, store: Optional[BaseStateStore] = None, history_strategy: HistoryUpdateStrategy = None ):
         self.store = store
         self.strategy = history_strategy
 
@@ -20,29 +20,34 @@ class StateManager:
                     id=task_id,
                     sessionId=session_id,
                     status=TaskStatus(state=TaskState.WORKING),
+                    artifacts=[],
                     history=[message],
                     metadata=metadata or {}
                 ),
                 context_history=[message],
             )
-        existing = self.store.get_state(task_id) or StateData(
-            task_id=task_id,
-            task=Task(
-                id=task_id,
-                sessionId=session_id,
-                status=TaskStatus(state=TaskState.WORKING),
-                history=[message],
-                metadata=metadata or {}
-            ),
-            context_history=[message],
-        )
-        # Update task history (always append)
-        existing.task.history.append(message)
-        # Update context history
-        existing.context_history.append(message)
+        state = self.store.get_state(task_id)
+        if state:
+            # Update task history (always append)
+            state.task.history.append(message)
+            # Update context history
+            state.context_history.append(message)
+        else:
+            state = StateData(
+                task_id=task_id,
+                task=Task(
+                    id=task_id,
+                    sessionId=session_id,
+                    status=TaskStatus(state=TaskState.WORKING),
+                    artifacts=[],
+                    history=[message],
+                    metadata=metadata or {}
+                ),
+                context_history=[message],
+            )
 
-        self.store.update_state(task_id, existing)
-        return existing
+        self.store.update_state(task_id, state)
+        return state
 
     def update(self, state: StateData):
         if self.store:
