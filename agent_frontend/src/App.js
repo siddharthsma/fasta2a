@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { v4 as uuidv4 } from 'uuid';
 import { API_CONFIG } from './config';
@@ -14,6 +14,16 @@ function App() {
   const [mode, setMode] = useState('send');
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [currentTaskId, setCurrentTaskId] = useState(null);
+  const messagesEndRef = useRef(null);
+
+  // Add scroll effect
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]); // Trigger when messages change
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -133,12 +143,13 @@ function App() {
       // Update chats list if new session
       if (isNewSession) {
         const newChat = {
-          id: currentTaskId, // Use task ID instead of session ID
+          id: taskId, // Use task ID instead of session ID
           sessionId,
           title: metadata.task_name,
           timestamp: new Date()
         };
         setChats(prev => [...prev, newChat]);
+        setActiveChat(taskId);
       }
         
   
@@ -305,9 +316,10 @@ const handleChatSelect = async (chat) => {
         ) : (
           <>
             <div className="chat-messages">
-            {messages.map((message) => (
-              <Message key={message.id} message={message} />  // Changed from timestamp to id
-            ))}
+              {messages.map((message) => (
+                <Message key={message.id} message={message} />  // Changed from timestamp to id
+              ))}
+              <div ref={messagesEndRef} />
             </div>
             <div className="input-container">
               <form onSubmit={handleSubmit}>

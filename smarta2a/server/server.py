@@ -211,7 +211,7 @@ class SmartA2A:
                             result=state_data.task
                         )
                     else:
-                        return JSONRPCResponse(id=task_id, error=TaskNotFoundError()).model_dump() 
+                        return JSONRPCResponse(id=task_id, error=TaskNotFoundError())
                 else:
                     return await self._handle_get_task(request)
             elif method == "tasks/cancel":
