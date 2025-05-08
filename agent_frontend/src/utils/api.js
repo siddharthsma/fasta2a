@@ -39,27 +39,28 @@ export const truncateTitle = (text, maxLength = 50) => {
   return `${text.substring(0, maxLength)}...`;
 };
 
-
 export const buildGetRequest = (taskId) => ({
-    jsonrpc: '2.0',
-    id: uuidv4(),
-    method: 'tasks/get',
+    jsonrpc: "2.0",
+    id: 1,
+    method: "tasks/get",
     params: {
-      id: taskId
+      id: taskId,
+      historyLength: 10,
+      metadata: {}
     }
   });
   
-  export const parseGetResponse = (response) => {
-    if (!response.result) throw new Error('Invalid response format');
-    
+export const parseGetResponse = (response) => {
+    const task = response.result;
     return {
-      messages: response.result.history.map(item => ({
-        role: item.role,
-        parts: item.parts,
+      messages: task.history.map(msg => ({
+        ...msg,
+        id: uuidv4(),
+        status: 'complete',
         timestamp: new Date()
       })),
-      metadata: response.result.metadata,
-      sessionId: response.result.sessionId,
-      taskId: response.result.id
+      sessionId: task.sessionId,
+      taskId: task.id,
+      metadata: task.metadata
     };
-  };
+};

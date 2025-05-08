@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { v4 as uuidv4 } from 'uuid';
 import { API_CONFIG } from './config';
-import { buildSendRequest, parseSendResponse, truncateTitle, parseGetResponse } from './utils/api';
+import { buildSendRequest, parseSendResponse, truncateTitle, parseGetResponse, buildGetRequest } from './utils/api';
 import './App.css';
 
 function App() {
@@ -14,6 +14,33 @@ function App() {
   const [mode, setMode] = useState('send');
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [currentTaskId, setCurrentTaskId] = useState(null);
+
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/tasks?fields=id,status,metadata`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) throw new Error('Failed to fetch tasks');
+        const tasks = await response.json();
+  
+        const transformedChats = tasks.map(task => ({
+          id: task.id,
+          sessionId: task.sessionId,
+          title: task.metadata?.task_name || 'Untitled Task',
+          timestamp: new Date(task.status.timestamp)
+        }));
+  
+        setChats(transformedChats);
+      } catch (error) {
+        console.error('Error loading tasks:', error);
+      }
+    };
+  
+    fetchTasks();
+  }, []);
 
   const handleNewChat = () => {
     setCurrentSessionId(null);
@@ -41,7 +68,7 @@ function App() {
         isNewSession = true;
         sessionId = uuidv4();
         taskId = uuidv4(); // Generate separate task ID
-        metadata.title = truncateTitle(input);
+        metadata.task_name = truncateTitle(input);
 
         setCurrentSessionId(sessionId);
         setCurrentTaskId(taskId); // Set the new task ID
@@ -108,7 +135,7 @@ function App() {
         const newChat = {
           id: currentTaskId, // Use task ID instead of session ID
           sessionId,
-          title: metadata.title,
+          title: metadata.task_name,
           timestamp: new Date()
         };
         setChats(prev => [...prev, newChat]);
@@ -136,20 +163,24 @@ function App() {
 };
   
 const mockFetchChatHistory = async (taskId) => {
-  // Replace this with actual fetch when backend is ready
   return {
     jsonrpc: '2.0',
     id: 1,
     result: {
       id: taskId,
-      sessionId: 'mock-session-id',
+      status: {
+        state: 'completed',
+        timestamp: new Date().toISOString()
+      },
+      metadata: {
+        task_name: 'Mock History Task'
+      },
       history: [
         {
           role: 'user',
           parts: [{ type: 'text', text: 'Mock history message' }]
         }
-      ],
-      metadata: { title: 'Mock History' }
+      ]
     }
   };
 };
@@ -172,8 +203,17 @@ const handleChatSelect = async (chat) => {
     setMessages([loadingMessage]);
 
     // Fetch chat history
-    const response = await mockFetchChatHistory(chat.id);
-    const { messages: historyMessages, sessionId, taskId } = parseGetResponse(response);
+    const requestBody = buildGetRequest(chat.id);
+    const response = await fetch(API_CONFIG.BASE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) throw new Error('Network response was not ok');
+    const responseData = await response.json();
+
+    const { messages: historyMessages, sessionId, taskId } = parseGetResponse(responseData);
     
     // Update state
     setCurrentSessionId(sessionId);
@@ -340,9 +380,14 @@ const ChatSection = ({
 }) => {
   const now = new Date();
   const filteredChats = chats.filter(chat => {
-    const diffTime = Math.abs(now - chat.timestamp);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays >= daysAgo && (daysAgo === 8 ? diffDays > 7 : diffDays < daysAgo);
+    const now = new Date();
+    const taskDate = new Date(chat.timestamp);
+    const diffDays = Math.floor((now - taskDate) / (1000 * 60 * 60 * 24));
+    
+    if (daysAgo === 0) return diffDays === 0; // Today
+    if (daysAgo === 1) return diffDays === 1; // Yesterday
+    if (daysAgo === 7) return diffDays > 1 && diffDays <= 7; // Last 7 days
+    return diffDays > 7; // Older
   });
 
   if (filteredChats.length === 0) return null;

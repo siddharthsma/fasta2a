@@ -46,16 +46,6 @@ class A2AAgent:
         async def on_send_task(request: SendTaskRequest, state: StateData):
             response = await self.model_provider.generate(state.context_history)
             return response
-        
-        @self.app.task_get()
-        async def on_task_get(request: GetTaskRequest, state: StateData):
-            return state.task
-        
-        @self.app.task_cancel()
-        async def on_task_cancel(request: CancelTaskRequest, state: StateData):
-            task = state.task
-            task.status.state = TaskState.CANCELED
-            return task
 
     def get_app(self):
         return self.app

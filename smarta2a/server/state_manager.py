@@ -48,6 +48,11 @@ class StateManager:
 
         self.store.update_state(task_id, state)
         return state
+    
+    def get_state(self, task_id: str) -> Optional[StateData]:
+        if not self.store:
+            return None
+        return self.store.get_state(task_id)
 
     def update(self, state: StateData):
         if self.store:

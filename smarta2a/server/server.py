@@ -132,7 +132,7 @@ class SmartA2A:
     def _setup_cors(self):
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origins=["http://localhost:3000"],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
@@ -202,7 +202,18 @@ class SmartA2A:
                 else:
                     return await self._handle_subscribe_task(request)
             elif method == "tasks/get":
-                return self._handle_get_task(request)
+                task_id = params.get("id")
+                if state_store: 
+                    state_data = self.state_mgr.get_state(task_id)
+                    if state_data:
+                        return GetTaskResponse(
+                            id=task_id,
+                            result=state_data.task
+                        )
+                    else:
+                        return JSONRPCResponse(id=task_id, error=TaskNotFoundError()).model_dump() 
+                else:
+                    return await self._handle_get_task(request)
             elif method == "tasks/cancel":
                 return self._handle_cancel_task(request)
             elif method == "tasks/pushNotification/set":
@@ -540,6 +551,7 @@ class SmartA2A:
                 )
 
             try:
+                
                 raw_result = handler(request)
             
                 if isinstance(raw_result, GetTaskResponse):
