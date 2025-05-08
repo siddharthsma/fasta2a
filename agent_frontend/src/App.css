@@ -280,3 +280,78 @@ button[type="submit"]:hover {
   /* Add transition for smooth hover effect */
   transition: background-color 0.2s ease;
 }
+
+
+.markdown-content {
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+.markdown-content h1, 
+.markdown-content h2, 
+.markdown-content h3 {
+  margin: 1em 0 0.5em;
+  font-weight: 600;
+}
+
+.markdown-content p {
+  margin: 0.8em 0;
+  white-space: pre-wrap;
+}
+
+.code-block {
+  background: #f6f8fa;
+  padding: 1em;
+  border-radius: 6px;
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.inline-code {
+  background: #f3f4f6;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.pre-block {
+  margin: 0;
+  padding: 0;
+}
+
+.quote-block {
+  border-left: 4px solid #ddd;
+  margin: 1em 0;
+  padding: 0 1em;
+  color: #666;
+}
+
+.numbered-list,
+.bulleted-list {
+  margin: 0.8em 0;
+  padding-left: 2em;
+}
+
+.bulleted-list li {
+  list-style-type: disc;
+}
+
+.numbered-list li {
+  list-style-type: decimal;
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+.markdown-content th {
+  background-color: #f8f9fa;
+}

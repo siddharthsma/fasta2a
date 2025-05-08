@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { v4 as uuidv4 } from 'uuid';
 import { API_CONFIG } from './config';
 import { buildSendRequest, parseSendResponse, truncateTitle, parseGetResponse, buildGetRequest } from './utils/api';
@@ -355,7 +356,40 @@ const Message = ({ message }) => (
     ) : (
       message.parts.map((part, index) => (
         part.type === 'text' ? (
-          <ReactMarkdown key={index}>{part.text}</ReactMarkdown>
+          <div className="markdown-content" key={index}>
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({ node, inline, className, children, ...props }) {
+                  return !inline ? (
+                    <div className="code-block">
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    </div>
+                  ) : (
+                    <code className="inline-code" {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+                pre({ node, children, ...props }) {
+                  return <pre className="pre-block" {...props}>{children}</pre>;
+                },
+                blockquote({ node, children, ...props }) {
+                  return <blockquote className="quote-block" {...props}>{children}</blockquote>;
+                },
+                ol({ node, children, ...props }) {
+                  return <ol className="numbered-list" {...props}>{children}</ol>;
+                },
+                ul({ node, children, ...props }) {
+                  return <ul className="bulleted-list" {...props}>{children}</ul>;
+                }
+              }}
+            >
+              {part.text}
+            </ReactMarkdown>
+          </div>
         ) : (
           <div key={index}>Unsupported content type</div>
         )

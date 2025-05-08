@@ -34,7 +34,7 @@ export const parseSendResponse = (response) => {
     };
   };
 
-export const truncateTitle = (text, maxLength = 50) => {
+export const truncateTitle = (text, maxLength = 24) => {
   if (text.length <= maxLength) return text;
   return `${text.substring(0, maxLength)}...`;
 };
