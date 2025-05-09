@@ -10,7 +10,7 @@ from smarta2a.history_update_strategies.history_update_strategy import HistoryUp
 from smarta2a.history_update_strategies.append_strategy import AppendStrategy
 from smarta2a.state_stores.base_state_store import BaseStateStore
 from smarta2a.state_stores.inmemory_state_store import InMemoryStateStore
-from smarta2a.utils.types import StateData, SendTaskRequest, AgentCard, GetTaskRequest, CancelTaskRequest, TaskState
+from smarta2a.utils.types import StateData, SendTaskRequest, AgentCard, CallbackResponse, Message
 
 class A2AAgent:
     def __init__(
@@ -18,17 +18,16 @@ class A2AAgent:
             name: str,
             model_provider: BaseLLMProvider,
             agent_card: AgentCard = None,
-            history_update_strategy: HistoryUpdateStrategy = None,
-            state_store: BaseStateStore = None,
+            state_manager: StateManager = None,
         ):
         self.model_provider = model_provider
         self.history_update_strategy = history_update_strategy or AppendStrategy()
         self.state_store = state_store or InMemoryStateStore()
+        self.state_manager = self.state_store
         self.app = SmartA2A(
             name=name,
             agent_card=agent_card,
-            history_update_strategy=self.history_update_strategy,
-            state_store=self.state_store
+            state_manager=self.state_manager
         )
         self.__register_handlers()
 
@@ -39,7 +38,8 @@ class A2AAgent:
         
         @self.app.app.get("/tasks")
         async def get_tasks(fields: Optional[str] = Query(None)):
-            tasks_data = self.state_store.get_all_tasks(fields)
+            state_store = self.state_mgr.get_store()
+            tasks_data = state_store.get_all_tasks(fields)
             return JSONResponse(content=tasks_data)
         
         @self.app.on_send_task()

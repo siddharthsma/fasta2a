@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 # Local imports
 from smarta2a.server import SmartA2A
+from smarta2a.server.state_manager import StateManager
 from smarta2a.utils.types import (
     Message, 
     StateData, 
@@ -26,6 +27,9 @@ class InMemoryStateStore(BaseStateStore):
     def __init__(self):
         self.states: Dict[str, StateData] = {}
     
+    def initialize_state(self, state_data: StateData) -> None:
+        self.states[state_data.task_id] = state_data
+    
     def get_state(self, task_id: str) -> Optional[StateData]:
         return self.states.get(task_id)
     
@@ -35,6 +39,7 @@ class InMemoryStateStore(BaseStateStore):
     def delete_state(self, task_id: str):
         if task_id in self.states:
             del self.states[task_id]
+    
     
 
 # Add async teardown for server
@@ -49,8 +54,9 @@ async def cleanup():
 def test_send_task_with_history_strategy_and_state_store():
     state_store = InMemoryStateStore()
     append_strategy = AppendStrategy()
+    state_manager = StateManager(store=state_store, history_strategy=append_strategy)
 
-    a2a_server = SmartA2A("test-server", state_store=state_store, history_update_strategy=append_strategy)
+    a2a_server = SmartA2A("test-server", state_manager=state_manager)
 
     with TestClient(a2a_server.app) as client:
         # Register task handler correctly
@@ -90,51 +96,14 @@ def test_send_task_with_history_strategy_and_state_store():
     assert data["result"]["history"][0]["parts"][0]["text"] == "Test message"
     assert data["result"]["history"][1]["parts"][0]["text"] == "Hello, World!"
 
-def test_send_task_with_history_strategy_only():
-    append_strategy = AppendStrategy()
-
-    a2a_server = SmartA2A("test-server", history_update_strategy=append_strategy)
-
-    with TestClient(a2a_server.app) as client:
-        # Register task handler correctly
-        @a2a_server.on_send_task()
-        async def handle_task(request: SendTaskRequest):
-            return "Hello, World!"
-
-        # Send valid request with required fields
-        response = client.post("/rpc", json={
-            "jsonrpc": "2.0",
-            "id": "1",
-            "method": "tasks/send",
-            "params": {
-                "id": "test-task-1",
-                "message": {
-                    "role": "user",
-                    "parts": [{"type": "text", "text": "Test message"}]
-                }
-            }
-        })
-
-    assert response.status_code == 200
-    data = response.json()
-    print(data)
-    assert data["id"] == "1"
-    assert data["result"]["status"]["state"] == "completed"
-    assert len(data["result"]["artifacts"]) == 1
-    assert data["result"]["artifacts"][0]["parts"][0]["text"] == "Hello, World!"
-    assert data["result"]["sessionId"]  # Should be generated
-    assert len(data["result"]["history"]) == 2
-    assert data["result"]["history"][0]["role"] == "user"
-    assert data["result"]["history"][1]["role"] == "agent"
-    assert data["result"]["history"][0]["parts"][0]["text"] == "Test message"
-    assert data["result"]["history"][1]["parts"][0]["text"] == "Hello, World!"
 
 
 def test_send_subscribe_task_with_history_strategy_and_state_store():
     state_store = InMemoryStateStore()
     append_strategy = AppendStrategy()
+    state_manager = StateManager(store=state_store, history_strategy=append_strategy)
 
-    a2a_server = SmartA2A("test-server", state_store=state_store, history_update_strategy=append_strategy)
+    a2a_server = SmartA2A("test-server", state_manager=state_manager)
 
     with TestClient(a2a_server.app) as client:
         # Register subscription handler with string statuses

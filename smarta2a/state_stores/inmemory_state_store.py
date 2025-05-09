@@ -10,6 +10,9 @@ class InMemoryStateStore(BaseStateStore):
     def __init__(self):
         self.states: Dict[str, StateData] = {}
     
+    def initialize_state(self, state_data: StateData) -> None:
+        self.states[state_data.task_id] = state_data
+    
     def get_state(self, task_id: str) -> Optional[StateData]:
         return self.states.get(task_id)
     

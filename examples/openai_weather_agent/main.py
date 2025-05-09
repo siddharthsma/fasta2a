@@ -5,6 +5,9 @@ import uvicorn
 from smarta2a.agent.a2a_agent import A2AAgent
 from smarta2a.model_providers.openai_provider import OpenAIProvider
 from smarta2a.utils.types import AgentCard, AgentCapabilities, AgentSkill
+from smarta2a.state_stores.inmemory_state_store import InMemoryStateStore
+from smarta2a.history_update_strategies.append_strategy import AppendStrategy
+from smarta2a.server.state_manager import StateManager
 
 
 
@@ -32,11 +35,14 @@ openai_provider = OpenAIProvider(
     mcp_server_urls_or_paths=["/Users/apple/Desktop/Code/weather/weather.py"],
 )
 
+state_manager = StateManager(state_store=InMemoryStateStore(), history_strategy=AppendStrategy())
+
 # Create the agent
 agent = A2AAgent(
     name="openai_agent",
     model_provider=openai_provider,
-    agent_card=weather_agent_card
+    agent_card=weather_agent_card,
+    state_manager=state_manager
 )
 
 # Entry point

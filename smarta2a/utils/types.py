@@ -482,9 +482,21 @@ class StateData(BaseModel):
     task_id: str
     task: Task
     context_history: List[Message]
+    push_notification_config: PushNotificationConfig | None = None
 
 class Tool(BaseModel):
     key: str
     name: str
     description: str
     inputSchema: Dict[str, Any]
+
+class CallbackRequest(JSONRPCRequest, ContentMixin):
+    method: Literal["tasks/send"] = "tasks/send"
+    params: TaskSendParams
+
+class CallbackStatus(str, Enum):
+    success = "success"
+    error = "error"
+
+class CallbackResponse(JSONRPCResponse):
+    result: CallbackStatus | None = None
