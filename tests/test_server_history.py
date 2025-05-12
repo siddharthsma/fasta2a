@@ -54,7 +54,7 @@ async def cleanup():
 def test_send_task_with_history_strategy_and_state_store():
     state_store = InMemoryStateStore()
     append_strategy = AppendStrategy()
-    state_manager = StateManager(store=state_store, history_strategy=append_strategy)
+    state_manager = StateManager(state_store=state_store, history_strategy=append_strategy)
 
     a2a_server = SmartA2A("test-server", state_manager=state_manager)
 
@@ -71,6 +71,7 @@ def test_send_task_with_history_strategy_and_state_store():
             "method": "tasks/send",
             "params": {
                 "id": "test-task-1",
+                "sessionId": "c295ea44-7543-4f78-b524-7a38915ad6e4",
                 "message": {
                     "role": "user",
                     "parts": [{"type": "text", "text": "Test message"}]
@@ -101,7 +102,7 @@ def test_send_task_with_history_strategy_and_state_store():
 def test_send_subscribe_task_with_history_strategy_and_state_store():
     state_store = InMemoryStateStore()
     append_strategy = AppendStrategy()
-    state_manager = StateManager(store=state_store, history_strategy=append_strategy)
+    state_manager = StateManager(state_store=state_store, history_strategy=append_strategy)
 
     a2a_server = SmartA2A("test-server", state_manager=state_manager)
 
@@ -120,7 +121,6 @@ def test_send_subscribe_task_with_history_strategy_and_state_store():
             json={
                 "jsonrpc": "2.0",
                 "id": "3",
-                
                 "method": "tasks/sendSubscribe",
                 "params": {
                     "id": "test-task-2",
@@ -149,6 +149,7 @@ def test_send_subscribe_task_with_history_strategy_and_state_store():
 
     # Verify event sequence
     assert len(events) >= 4, f"Expected 4 events, got {len(events)}: {events}"
+    print(events)
     assert state_store.get_state("test-task-2").task.history[0].role == "user"
     assert state_store.get_state("test-task-2").task.history[1].role == "agent"
     assert state_store.get_state("test-task-2").task.history[2].role == "agent"

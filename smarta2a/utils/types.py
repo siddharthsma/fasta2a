@@ -490,13 +490,15 @@ class Tool(BaseModel):
     description: str
     inputSchema: Dict[str, Any]
 
-class CallbackRequest(JSONRPCRequest, ContentMixin):
-    method: Literal["tasks/send"] = "tasks/send"
-    params: TaskSendParams
+'''
+The callback request may simply be a message without a result - basically acknowledging the task was completed.
+It can also include a result, which is the task that was completed along with the full artifact.
+'''
+class WebhookRequest(BaseModel):
+    id: str
+    result: Task | None = None
 
-class CallbackStatus(str, Enum):
-    success = "success"
-    error = "error"
-
-class CallbackResponse(JSONRPCResponse):
-    result: CallbackStatus | None = None
+class WebhookResponse(BaseModel):
+    id: str
+    result: Task | None = None
+    error: str | None = None

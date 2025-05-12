@@ -22,7 +22,7 @@ export const buildSendRequest = (input, sessionId, taskId, metadata) => ({
 export const parseSendResponse = (response) => {
     if (!response.result) throw new Error('Invalid response format');
     
-    // Get the latest agent message from artifacts
+    // Get the latest agent message from artifacts - TODO: Handle multiple artifacts' messages
     const agentMessage = response.result.artifacts[0]?.parts[0]?.text || '';
     
     return {

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { API_CONFIG } from './config';
 import { buildSendRequest, parseSendResponse, truncateTitle, parseGetResponse, buildGetRequest } from './utils/api';
 import './App.css';
+import { connect } from 'nats.ws'; // Browser-compatible NATS client
 
 function App() {
   const [messages, setMessages] = useState([]);
@@ -16,6 +17,8 @@ function App() {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [currentTaskId, setCurrentTaskId] = useState(null);
   const messagesEndRef = useRef(null);
+  const natsConnection = useRef(null);
+  const subscription = useRef(null);
 
   // Add scroll effect
   useEffect(() => {
@@ -52,6 +55,60 @@ function App() {
   
     fetchTasks();
   }, []);
+
+
+  // Add useEffect for connection management
+  useEffect(() => {
+    const setupNATS = async () => {
+      try {
+        natsConnection.current = await connect({
+          servers: ['ws://localhost:4222']
+        });
+        
+        subscription.current = natsConnection.current.subscribe('state.updates');
+        
+        // Message listener
+        (async () => {
+          for await (const msg of subscription.current) {
+            const update = JSON.parse(new TextDecoder().decode(msg.data));
+            handleNATSUpdate(update);
+          }
+        })();
+      } catch (error) {
+        console.error('NATS connection failed:', error);
+      }
+    };
+
+    setupNATS();
+
+    // Cleanup on unmount
+    return () => {
+      if (subscription.current) subscription.current.unsubscribe();
+      if (natsConnection.current) natsConnection.current.close();
+    };
+  }, []);
+
+  // Handle NATS updates
+  const handleNATSUpdate = (update) => {
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === `temp-${update.taskId}`) {
+        const newMessage = {
+          ...msg,
+          parts: update.parts || [],
+          status: update.complete ? 'complete' : 'streaming',
+          timestamp: new Date()
+        };
+        
+        if (update.complete) {
+          newMessage.id = uuidv4(); // Replace temp ID on completion
+        }
+        
+        return newMessage;
+      }
+      return msg;
+    }));
+  };
+
 
   const handleNewChat = () => {
     setCurrentSessionId(null);
@@ -107,7 +164,7 @@ function App() {
 
       setMessages(prev => [...prev, tempAgentMessage]);
       setIsInitialState(false);
-  
+
       // Build and send request
       const requestBody = buildSendRequest(
         input,
@@ -116,30 +173,13 @@ function App() {
         metadata
       );
 
-      const response = await fetch(API_CONFIG.BASE_URL, {
+      fetch(API_CONFIG.BASE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
+      }).catch(error => {
+        console.error('POST failed:', error);
       });
-  
-      if (!response.ok) throw new Error('Network response was not ok');
-      const responseData = await response.json();
-      
-      // Parse response and update messages
-      const { messages: parsedMessages } = parseSendResponse(responseData);
-  
-      setMessages(prev => prev.map(msg => {
-        if (msg.id === tempAgentMessage.id) {
-          return {
-            ...msg,
-            ...parsedMessages[0],
-            id: uuidv4(), // Replace temp ID
-            status: 'complete',
-            timestamp: new Date()
-          };
-        }
-        return msg;
-      }));
   
       // Update chats list if new session
       if (isNewSession) {
@@ -152,8 +192,6 @@ function App() {
         setChats(prev => [...prev, newChat]);
         setActiveChat(taskId);
       }
-        
-  
       
     } catch (error) {
     if (tempAgentMessage) { // Add safety check
