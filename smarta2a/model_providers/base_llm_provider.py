@@ -3,13 +3,13 @@ from abc import ABC, abstractmethod
 from typing import AsyncGenerator, List
 
 # Local imports
-from smarta2a.utils.types import Message
+from smarta2a.utils.types import StateData
 
 class BaseLLMProvider(ABC):
     @abstractmethod
-    async def generate(self, messages: List[Message], **kwargs) -> str:
+    async def generate(self, state: StateData, **kwargs) -> str:
         pass
     
     @abstractmethod
-    async def generate_stream(self, messages: List[Message], **kwargs) -> AsyncGenerator[str, None]:
+    async def generate_stream(self, state: StateData, **kwargs) -> AsyncGenerator[str, None]:
         pass

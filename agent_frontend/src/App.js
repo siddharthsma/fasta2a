@@ -39,7 +39,7 @@ function App() {
         
         if (!response.ok) throw new Error('Failed to fetch tasks');
         const tasks = await response.json();
-  
+        
         const transformedChats = tasks.map(task => ({
           id: task.id,
           sessionId: task.sessionId,
@@ -62,7 +62,7 @@ function App() {
     const setupNATS = async () => {
       try {
         natsConnection.current = await connect({
-          servers: ['ws://localhost:4222']
+          servers: ['ws://localhost:9222']
         });
         
         subscription.current = natsConnection.current.subscribe('state.updates');
@@ -94,7 +94,7 @@ function App() {
       if (msg.id === `temp-${update.taskId}`) {
         const newMessage = {
           ...msg,
-          parts: update.parts || [],
+          parts: update.parts || msg.parts,
           status: update.complete ? 'complete' : 'streaming',
           timestamp: new Date()
         };
@@ -155,7 +155,7 @@ function App() {
       
       // Add temporary loading message
       tempAgentMessage = {
-        id: `temp-${Date.now()}`,
+        id: `temp-${taskId}`,
         role: 'agent',
         parts: [{ type: 'text', text: '' }],
         status: 'pending',
@@ -173,7 +173,7 @@ function App() {
         metadata
       );
 
-      fetch(API_CONFIG.BASE_URL, {
+      fetch(`${API_CONFIG.BASE_URL}/rpc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
@@ -212,28 +212,6 @@ function App() {
   }
 };
   
-const mockFetchChatHistory = async (taskId) => {
-  return {
-    jsonrpc: '2.0',
-    id: 1,
-    result: {
-      id: taskId,
-      status: {
-        state: 'completed',
-        timestamp: new Date().toISOString()
-      },
-      metadata: {
-        task_name: 'Mock History Task'
-      },
-      history: [
-        {
-          role: 'user',
-          parts: [{ type: 'text', text: 'Mock history message' }]
-        }
-      ]
-    }
-  };
-};
 
 // Add chat selection handler
 const handleChatSelect = async (chat) => {
@@ -254,7 +232,7 @@ const handleChatSelect = async (chat) => {
 
     // Fetch chat history
     const requestBody = buildGetRequest(chat.id);
-    const response = await fetch(API_CONFIG.BASE_URL, {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/rpc`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)
@@ -281,6 +259,8 @@ const handleChatSelect = async (chat) => {
     }]);
   }
 };
+
+
 
   return (
     <div className="app">

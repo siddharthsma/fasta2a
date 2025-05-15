@@ -49,7 +49,7 @@ class StateManager:
         self.state_store.initialize_state(state)
         return state
 
-    def get_or_create_and_update_state(
+    async def get_or_create_and_update_state(
         self,
         task_id: str,
         session_id: str,
@@ -74,6 +74,8 @@ class StateManager:
             new_messages=[message]
         )
         latest_state.task.metadata = metadata
+
+        await self.update_state(latest_state)
 
         return latest_state
     

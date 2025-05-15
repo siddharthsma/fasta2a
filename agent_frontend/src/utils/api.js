@@ -3,7 +3,7 @@ import { API_CONFIG } from '../config';
 
 export const buildSendRequest = (input, sessionId, taskId, metadata) => ({
     jsonrpc: '2.0',
-    id: 1,
+    id: taskId,
     method: 'tasks/send',
     params: {
       id: taskId,       // Should come from currentTaskId
@@ -41,7 +41,7 @@ export const truncateTitle = (text, maxLength = 24) => {
 
 export const buildGetRequest = (taskId) => ({
     jsonrpc: "2.0",
-    id: 1,
+    id: taskId,
     method: "tasks/get",
     params: {
       id: taskId,

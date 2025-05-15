@@ -6,7 +6,7 @@ from openai import AsyncOpenAI
 from pydantic import HttpUrl, ValidationError
 
 # Local imports
-from smarta2a.utils.types import Message, TextPart, FilePart, DataPart, Part, AgentCard
+from smarta2a.utils.types import Message, TextPart, FilePart, DataPart, Part, AgentCard, StateData
 from smarta2a.model_providers.base_llm_provider import BaseLLMProvider
 from smarta2a.utils.tools_manager import ToolsManager
 from smarta2a.utils.prompt_helpers import build_system_prompt
@@ -136,97 +136,102 @@ class OpenAIProvider(BaseLLMProvider):
         return openai_messages
     
 
-    def _format_openai_tools(self) -> List[dict]:
+    def _format_openai_functions(self) -> List[dict]:
         """
         Convert internal tools metadata to OpenAI's function-call schema.
         """
-        openai_tools = []
+        functions = []
         for tool in self.tools_manager.get_tools():
-            openai_tools.append({
-                "type": "function",
-                "function": {
-                    "name": tool.key,
-                    "description": tool.description,
-                    "parameters": tool.inputSchema
-                }
+            functions.append({
+                "name": tool.key,
+                "description": tool.description,
+                "parameters": tool.inputSchema,
             })
-        return openai_tools
 
+        return functions
+        
 
-    async def generate(self, messages: List[Dict[str, Any]], **kwargs) -> str:
+    async def generate(self, state: StateData, **kwargs) -> str:
         """
         Generate a complete response, invoking tools as needed.
         """
-        # Ensure messages are Message objects
-        messages = [msg if isinstance(msg, Message) else Message(**msg) for msg in messages]
-        converted_messages = self._convert_messages(messages)
+        
+        # Prepare history
+        messages = [msg if isinstance(msg, Message) else Message(**msg) for msg in state.context_history]
+        openai_messages = self._convert_messages(messages)
         max_iterations = 30
 
-        for iteration in range(max_iterations):
+        for _ in range(max_iterations):
+            # Call ChatCompletion with functions (not 'tools')
             response = await self.client.chat.completions.create(
                 model=self.model,
-                messages=converted_messages,
-                tools=self._format_openai_tools(),
+                messages=openai_messages,
+                functions=self._format_openai_functions(),
                 **kwargs
             )
-            message = response.choices[0].message
+            msg = response.choices[0].message
 
-            # Detect and extract the tool/function call
-            if getattr(message, 'function_call', None):
-                name = message.function_call.name
-                args_raw = message.function_call.arguments
-            elif getattr(message, 'tool_calls', None):
-                tc = message.tool_calls[0]
-                name = tc.function.name
-                args_raw = tc.function.arguments
-            else:
-                return message.content
-            print(message)
-            # Append the assistant's intent
-            converted_messages.append({
+            # If no function call, return content
+            if not msg.function_call:
+                return msg.content
+
+            # Extract function call details
+            fn_name = msg.function_call.name
+            fn_args = json.loads(msg.function_call.arguments or '{}')
+
+            # Append assistant function_call message
+            openai_messages.append({
                 "role": "assistant",
                 "content": None,
-                "function_call": {"name": name, "arguments": args_raw}
+                "function_call": {
+                    "name": fn_name,
+                    "arguments": msg.function_call.arguments,
+                }
             })
 
-            # Parse arguments safely
+            # Call the actual tool
             try:
-                args = json.loads(args_raw or '{}')
-            except json.JSONDecodeError:
-                args = {}
+                override_args = {
+                    'id': state.task_id,
+                    'sessionId': state.task.sessionId
+                }
 
-            # Call the tool manager with name and parsed args
-            try:
-                tool_result = await self.tools_manager.call_tool(name, args)
+                tool_result = await self.tools_manager.call_tool(fn_name, fn_args, override_args)
             except Exception as e:
-                tool_result = {"content": f"Error calling {name}: {e}"}
+                tool_result = {"content": f"Error calling {fn_name}: {e}"}
 
-            # Extract content
-            if hasattr(tool_result, 'content'):
-                result_content = tool_result.content
-            elif isinstance(tool_result, dict) and 'content' in tool_result:
-                result_content = tool_result['content']
+            # Case 1: Handle list of TextContent objects
+            if isinstance(tool_result, list) and len(tool_result) > 0:
+                # Extract text from the first TextContent item in the list
+                result = tool_result[0].text  # Access the `text` attribute
+
+            # Case 2: Handle error case (dict with 'content' key)
+            elif isinstance(tool_result, dict):
+                result = tool_result.get('content', str(tool_result))
+
+            # Fallback for unexpected types
             else:
-                result_content = str(tool_result)
+                result = str(tool_result)
 
-            # Append the function/tool's response
-            converted_messages.append({
+            # Append function response
+            openai_messages.append({
                 "role": "function",
-                "name": name,
-                "content": result_content
+                "name": fn_name,
+                "content": result,
             })
 
         raise RuntimeError("Max tool iteration depth reached in generate().")
 
 
-    async def generate_stream(self, messages: List[Union[Message, Dict[str, Any]]], **kwargs) -> AsyncGenerator[str, None]:
+    async def generate_stream(self, state: StateData, **kwargs) -> AsyncGenerator[str, None]:
         """
         Stream response chunks, invoking tools as needed.
         """
+        context_history = state.context_history
         # Normalize incoming messages to your Message model
         msgs = [
             msg if isinstance(msg, Message) else Message(**msg)
-            for msg in messages
+            for msg in context_history
         ]
         # Convert to OpenAI schema, including any prior tool results
         converted_messages = self._convert_messages(msgs)

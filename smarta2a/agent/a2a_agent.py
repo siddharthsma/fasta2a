@@ -34,18 +34,18 @@ class A2AAgent:
         
         @self.app.app.get("/tasks")
         async def get_tasks(fields: Optional[str] = Query(None)):
-            state_store = self.state_mgr.get_store()
+            state_store = self.state_manager.get_store()
             tasks_data = state_store.get_all_tasks(fields)
             return JSONResponse(content=tasks_data)
         
         @self.app.on_send_task(forward_to_webhook=False)
         async def on_send_task(request: SendTaskRequest, state: StateData):
-            response = await self.model_provider.generate(state.context_history)
+            response = await self.model_provider.generate(state)
             return response
         
         @self.app.webhook()
         async def on_webhook(request: WebhookRequest, state: StateData):
-            response = await self.model_provider.generate(state.context_history)
+            response = await self.model_provider.generate(state)
             return response
 
     def get_app(self):

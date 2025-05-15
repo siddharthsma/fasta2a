@@ -49,7 +49,7 @@ class JSONRPCRequestProcessor:
                     send_task_request = self._validate_request(request, SendTaskRequest)
                     
                     if self.state_manager:
-                        state_data = self.state_manager.get_or_create_and_update_state(send_task_request.params.id, send_task_request.params.sessionId, send_task_request.params.message, send_task_request.params.metadata, send_task_request.params.pushNotification)
+                        state_data = await self.state_manager.get_or_create_and_update_state(send_task_request.params.id, send_task_request.params.sessionId, send_task_request.params.message, send_task_request.params.metadata, send_task_request.params.pushNotification)
                         return await self.request_handler.handle_send_task(send_task_request, state_data)
                     else:
                         return await self.request_handler.handle_send_task(send_task_request)
@@ -57,7 +57,7 @@ class JSONRPCRequestProcessor:
                 case "tasks/sendSubscribe":
                     send_subscribe_request = self._validate_request(request, SendTaskStreamingRequest)
                     if self.state_manager:
-                        state_data = self.state_manager.get_or_create_and_update_state(send_subscribe_request.params.id, send_subscribe_request.params.sessionId, send_subscribe_request.params.message, send_subscribe_request.params.metadata, send_subscribe_request.params.pushNotification)
+                        state_data = await self.state_manager.get_or_create_and_update_state(send_subscribe_request.params.id, send_subscribe_request.params.sessionId, send_subscribe_request.params.message, send_subscribe_request.params.metadata, send_subscribe_request.params.pushNotification)
                         return await self.request_handler.handle_subscribe_task(send_subscribe_request, state_data)
                     else:
                         return await self.request_handler.handle_subscribe_task(send_subscribe_request)
