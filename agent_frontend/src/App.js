@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { v4 as uuidv4 } from 'uuid';
-import { API_CONFIG } from './config';
+import API_CONFIG from './config';
 import { buildSendRequest, parseSendResponse, truncateTitle, parseGetResponse, buildGetRequest } from './utils/api';
 import './App.css';
 import { connect } from 'nats.ws'; // Browser-compatible NATS client
@@ -62,7 +62,7 @@ function App() {
     const setupNATS = async () => {
       try {
         natsConnection.current = await connect({
-          servers: ['ws://localhost:9222']
+          servers: [`${API_CONFIG.NATS_URL}`]
         });
         
         subscription.current = natsConnection.current.subscribe('state.updates');
