@@ -70,7 +70,8 @@ function App() {
         // Message listener
         (async () => {
           for await (const msg of subscription.current) {
-            const update = JSON.parse(new TextDecoder().decode(msg.data));
+            const rawData = new TextDecoder().decode(msg.data);
+            const update = JSON.parse(rawData);
             handleNATSUpdate(update);
           }
         })();
@@ -90,25 +91,34 @@ function App() {
 
   // Handle NATS updates
   const handleNATSUpdate = (update) => {
-    setMessages(prev => prev.map(msg => {
-      if (msg.id === `temp-${update.taskId}`) {
-        const newMessage = {
+    setMessages((prev) => {
+      return prev.map((msg) => {
+        // Match both temporary and finalized IDs
+        const isTargetMessage = msg.id === `temp-${update.taskId}` || msg.id === update.taskId;
+        
+        if (!isTargetMessage) return msg;
+        if (msg.status === 'complete') return msg; // Ignore updates for completed messages
+
+        // Merge message parts correctly
+        const mergedParts = update.parts?.length > 0
+          ? update.parts // Replace with new parts (assuming full message updates)
+          : msg.parts;
+
+        // Generate final ID only once on first completion
+        const newId = update.complete && msg.id.startsWith('temp-')
+          ? uuidv4()
+          : msg.id;
+
+        return {
           ...msg,
-          parts: update.parts || msg.parts,
+          id: newId,
+          parts: mergedParts,
           status: update.complete ? 'complete' : 'streaming',
           timestamp: new Date()
         };
-        
-        if (update.complete) {
-          newMessage.id = uuidv4(); // Replace temp ID on completion
-        }
-        
-        return newMessage;
-      }
-      return msg;
-    }));
+      });
+    });
   };
-
 
   const handleNewChat = () => {
     setCurrentSessionId(null);
@@ -120,28 +130,17 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
-
-    setInput(''); // Clear IMMEDIATELY here
-
-    let tempAgentMessage;
   
     try {
-      let sessionId   = currentSessionId;
-      let taskId      = currentTaskId;   // ← declared in the outer scope
-      let metadata    = {};
-      let isNewSession = false;
-
-       // Create new chat session if needed
-       if (!sessionId) {
-        isNewSession = true;
-        sessionId = uuidv4();
-        taskId = uuidv4(); // Generate separate task ID
-        metadata.task_name = truncateTitle(input);
-
-        setCurrentSessionId(sessionId);
-        setCurrentTaskId(taskId); // Set the new task ID
-      }
-
+      // Generate fresh IDs for every new task
+      const newTaskId = uuidv4();
+      const sessionId = currentSessionId || uuidv4();
+      const isNewSession = !currentSessionId;
+  
+      // Clear input IMMEDIATELY
+      setInput('');
+  
+      // Create user message
       const userMessage = {
         id: Date.now(),
         role: 'user',
@@ -150,53 +149,56 @@ function App() {
         timestamp: new Date()
       };
   
-      // Add user message immediately
-      setMessages(prev => [...prev, userMessage]);
-      
-      // Add temporary loading message
-      tempAgentMessage = {
-        id: `temp-${taskId}`,
+      // Create temporary agent message with NEW task ID
+      const tempAgentMessage = {
+        id: `temp-${newTaskId}`,
         role: 'agent',
         parts: [{ type: 'text', text: '' }],
         status: 'pending',
         timestamp: new Date()
       };
-
-      setMessages(prev => [...prev, tempAgentMessage]);
+  
+      // Update state with both messages
+      setMessages(prev => [...prev, userMessage, tempAgentMessage]);
       setIsInitialState(false);
-
-      // Build and send request
+  
+      // Update session/task tracking
+      setCurrentTaskId(newTaskId);
+      if (isNewSession) setCurrentSessionId(sessionId);
+  
+      // Build request with fresh IDs
       const requestBody = buildSendRequest(
         input,
         sessionId,
-        taskId,
-        metadata
+        newTaskId,
+        { task_name: truncateTitle(input) }
       );
-
-      fetch(`${API_CONFIG.BASE_URL}/rpc`, {
+  
+      // Send request
+      const response = await fetch(`${API_CONFIG.BASE_URL}/rpc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
-      }).catch(error => {
-        console.error('POST failed:', error);
       });
   
-      // Update chats list if new session
+      if (!response.ok) throw new Error('Request failed');
+  
+      // Add to chat history if new session
       if (isNewSession) {
         const newChat = {
-          id: taskId, // Use task ID instead of session ID
+          id: newTaskId,
           sessionId,
-          title: metadata.task_name,
+          title: truncateTitle(input),
           timestamp: new Date()
         };
         setChats(prev => [...prev, newChat]);
-        setActiveChat(taskId);
+        setActiveChat(newTaskId);
       }
-      
+  
     } catch (error) {
-    if (tempAgentMessage) { // Add safety check
+      // Update error state for the temporary message
       setMessages(prev => prev.map(msg => {
-        if (msg.id === tempAgentMessage.id) {
+        if (msg.id.startsWith('temp-')) {
           return {
             ...msg,
             status: 'error',
@@ -206,11 +208,7 @@ function App() {
         return msg;
       }));
     }
-  } finally {
-    // This will ALWAYS run (success or error)
-    setInput('');  // <-- Moved here
-  }
-};
+  };
   
 
 // Add chat selection handler
