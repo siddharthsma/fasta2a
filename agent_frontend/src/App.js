@@ -62,7 +62,7 @@ function App() {
     const setupNATS = async () => {
       try {
         natsConnection.current = await connect({
-          servers: [`${API_CONFIG.NATS_URL}`]
+          servers: [`${API_CONFIG.NATS_WS_URL}`]
         });
         
         subscription.current = natsConnection.current.subscribe('state.updates');

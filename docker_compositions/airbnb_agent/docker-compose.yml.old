@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  airbnb-agent-frontend:
+    image: sidambegaonkar/a2aagent-frontend:alphav1
+    networks:
+      - a2a-network
+    ports:
+      - 80:80
+    environment:
+      - SERVER_URL=http://airbnb-agent/rpc
+      - NATS_WS_URL=ws://airbnb-agent-nats:9222
+    depends_on:
+      - airbnb-agent-nats
+      - airbnb-agent
+    
+  airbnb-agent:  # Example companion service
+    image: sidambegaonkar/a2aagent-inmemory-append-server:alphav1
+    networks:
+      - a2a-network
+    environment:
+      - OPENAI_API_KEY=<secret>
+      - MODEL=gpt-4o-mini
+      - BASE_SYSTEM_PROMPT=You are a cheerful assistant that specializes in Airbnb queries
+      - MCP_SERVER_URLS=|
+          ["@openbnb/mcp-server-airbnb --ignore-robots-txt"]
+      - COLLABORATING_AGENT_URLS=[]
+      - AGENT_NAME=airbnb-agent
+      - AGENT_URL=http://airbnb-agent/rpc
+      - AGENT_DESCRIPTION=An Airbnb agent that helps with queries
+      - SKILLS_JSON=|
+          [{
+            "id": "search_listings",
+            "name": "Search listings",
+            "description": "Search for Airbnb listings"
+          },
+          {
+            "id": "get_listing_details",
+            "name": "Get listing details",
+            "description": "Get detailed information about a listing"
+          }]
+      depends_on:
+        - airbnb-agent-nats
+  
+  airbnb-agent-nats:
+    image: nats:latest
+    volumes:
+      - ./nats-server.conf:/etc/nats/nats-server.conf
+    command: -c /etc/nats/nats-server.conf
+    networks:
+      - a2a-network
+
+networks:
+  a2a-network:
+    driver: bridge

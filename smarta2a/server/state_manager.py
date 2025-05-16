@@ -1,8 +1,5 @@
 # Library imports
 from typing import Optional, Dict, Any, List
-from uuid import uuid4
-from nats.aio.client import Client as NATS
-import asyncio
 
 # Local imports
 from smarta2a.state_stores.base_state_store import BaseStateStore
