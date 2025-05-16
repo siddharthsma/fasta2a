@@ -32,7 +32,7 @@ function App() {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}/tasks?fields=id,status,metadata`, {
+        const response = await fetch(`${API_CONFIG.SERVER_URL}/tasks?fields=id,status,metadata`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -175,7 +175,7 @@ function App() {
       );
   
       // Send request
-      const response = await fetch(`${API_CONFIG.BASE_URL}/rpc`, {
+      const response = await fetch(`${API_CONFIG.SERVER_URL}/rpc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
@@ -230,7 +230,7 @@ const handleChatSelect = async (chat) => {
 
     // Fetch chat history
     const requestBody = buildGetRequest(chat.id);
-    const response = await fetch(`${API_CONFIG.BASE_URL}/rpc`, {
+    const response = await fetch(`${API_CONFIG.SERVER_URL}/rpc`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)
