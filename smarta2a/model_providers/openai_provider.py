@@ -147,7 +147,6 @@ class OpenAIProvider(BaseLLMProvider):
                 "description": tool.description,
                 "parameters": tool.inputSchema,
             })
-
         return functions
         
 

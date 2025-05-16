@@ -53,7 +53,7 @@ class A2AClient:
         history_length: int | None = None,
         metadata: dict[str, Any] | None = None,
     ):
-        """Send a task to another Agent"""
+        """Send a task to another Agent."""
         params = TaskRequestBuilder.build_send_task_request(
             id=id,
             role=role,
@@ -83,7 +83,7 @@ class A2AClient:
         history_length: int | None = None,
         metadata: dict[str, Any] | None = None,
     ):
-        """Send to another Agent and receive a stream of responses"""
+        """Send to another Agent and receive a stream of responses."""
         params = TaskRequestBuilder.build_send_task_request(
             id=id,
             role=role,

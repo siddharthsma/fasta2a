@@ -37,6 +37,26 @@ class ToolsManager:
             for tool_dict in tools_list:
                 # Generate key from agent URL and tool name
                 key = f"{agent_card.name}---{tool_dict['name']}"
+
+                # Build new description
+                components = []
+                original_desc = tool_dict['description']
+                if original_desc:
+                    components.append(original_desc)
+                if agent_card.description:
+                    components.append(f"Agent Description: {agent_card.description}")
+                
+                # Collect skill descriptions
+                skill_descriptions = []
+                for skill in agent_card.skills:
+                    if skill.description:
+                        skill_descriptions.append(skill.description)
+                if skill_descriptions:
+                    components.append(f"Agent's skills: {', '.join(skill_descriptions)}")
+            
+                # Update tool_dict with new description
+                tool_dict['description'] = ". ".join(components)
+                
                 validated_tool = Tool(
                     key=key,
                     **tool_dict
