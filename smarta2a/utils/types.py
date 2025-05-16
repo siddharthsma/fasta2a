@@ -479,12 +479,26 @@ class A2AStreamResponse(BaseModel):
     metadata: dict[str, Any] | None = None
 
 class StateData(BaseModel):
-    sessionId: str
-    history: List[Message]
-    metadata: Dict[str, Any]
+    task_id: str
+    task: Task
+    context_history: List[Message]
+    push_notification_config: PushNotificationConfig | None = None
 
 class Tool(BaseModel):
     key: str
     name: str
     description: str
     inputSchema: Dict[str, Any]
+
+'''
+The callback request may simply be a message without a result - basically acknowledging the task was completed.
+It can also include a result, which is the task that was completed along with the full artifact.
+'''
+class WebhookRequest(BaseModel):
+    id: str
+    result: Task | None = None
+
+class WebhookResponse(BaseModel):
+    id: str
+    result: Task | None = None
+    error: str | None = None

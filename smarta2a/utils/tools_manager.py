@@ -1,6 +1,6 @@
 # Library imports
 import json
-from typing import List, Dict, Any, Union, Literal
+from typing import List, Dict, Any, Union, Literal, Optional
 
 # Local imports
 from smarta2a.client.mcp_client import MCPClient
@@ -37,6 +37,26 @@ class ToolsManager:
             for tool_dict in tools_list:
                 # Generate key from agent URL and tool name
                 key = f"{agent_card.name}---{tool_dict['name']}"
+
+                # Build new description
+                components = []
+                original_desc = tool_dict['description']
+                if original_desc:
+                    components.append(original_desc)
+                if agent_card.description:
+                    components.append(f"Agent Description: {agent_card.description}")
+                
+                # Collect skill descriptions
+                skill_descriptions = []
+                for skill in agent_card.skills:
+                    if skill.description:
+                        skill_descriptions.append(skill.description)
+                if skill_descriptions:
+                    components.append(f"Agent's skills: {', '.join(skill_descriptions)}")
+            
+                # Update tool_dict with new description
+                tool_dict['description'] = ". ".join(components)
+                
                 validated_tool = Tool(
                     key=key,
                     **tool_dict
@@ -65,13 +85,24 @@ class ToolsManager:
 
     def get_client(self, tool_key: str) -> Any:
         return self.clients.get(tool_key)
+    
+    async def call_tool(self, tool_key: str, args: Dict[str, Any], override_args: Optional[Dict[str, Any]] = None) -> Any:
+        try:
+            client = self.get_client(tool_key)
+            tool_name = self._get_tool_name(tool_key)
+            new_args = self._replace_with_override_args(args, override_args)
+            result = await client.call_tool(tool_name, new_args)
+            return result
 
-    async def call_tool(self, tool_key: str, args: Dict[str, Any]) -> Any:
-        client = self.get_client(tool_key)
-        tool_name = self._get_tool_name(tool_key)
-        if not client:
-            raise ValueError(f"Tool not found: {tool_name}")
-        return await client.call_tool(tool_name, args)
+        except Exception as e:
+            # This will catch ANY error in the body above
+            raise
     
     def _get_tool_name(self, tool_key: str) -> str:
         return tool_key.split("---")[1]
+    
+    def _replace_with_override_args(self, args: Dict[str, Any], override_args: Optional[Dict[str, Any]] = None):
+        new_args = args.copy()
+        if override_args:
+            new_args.update(override_args)
+        return new_args

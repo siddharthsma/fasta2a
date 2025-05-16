@@ -23,6 +23,9 @@ from smarta2a.utils.types import (
     CancelTaskResponse,
     SetTaskPushNotificationResponse,
     GetTaskPushNotificationResponse,
+    WebhookRequest,
+    WebhookResponse,
+    Task,
 )
 from smarta2a.utils.task_request_builder import TaskRequestBuilder
 
@@ -34,30 +37,30 @@ class A2AClient:
         elif url:
             self.url = url
         else:
-            raise ValueError("Must provide either agent_card or url")
+            pass
 
     async def send(
         self,
         *,
         id: str,
         role: Literal["user", "agent"] = "user",
-        text: str | None = None,
+        text: str,
         data: dict[str, Any] | None = None,
         file_uri: str | None = None,
-        session_id: str | None = None,
+        sessionId: str | None = None,
         accepted_output_modes: list[str] | None = None,
         push_notification: PushNotificationConfig | None = None,
         history_length: int | None = None,
         metadata: dict[str, Any] | None = None,
     ):
-        """Send a task to another Agent"""
+        """Send a task to another Agent."""
         params = TaskRequestBuilder.build_send_task_request(
             id=id,
             role=role,
             text=text,
             data=data,
             file_uri=file_uri,
-            session_id=session_id,
+            session_id=sessionId, # Need to amend the TaskRequestBuilder at a later time to take sessionId not session_id
             accepted_output_modes=accepted_output_modes,
             push_notification=push_notification,
             history_length=history_length,
@@ -80,7 +83,7 @@ class A2AClient:
         history_length: int | None = None,
         metadata: dict[str, Any] | None = None,
     ):
-        """Send to another Agent and receive a stream of responses"""
+        """Send to another Agent and receive a stream of responses."""
         params = TaskRequestBuilder.build_send_task_request(
             id=id,
             role=role,
@@ -152,6 +155,16 @@ class A2AClient:
         req = TaskRequestBuilder.get_push_notification(id, metadata)
         raw = await self._send_request(req)
         return GetTaskPushNotificationResponse(**raw)
+
+    async def send_to_webhook(
+        self,
+        webhook_url: str,
+        id: str,
+        task: Task
+    ):
+        """Send a task to another Agent"""
+        request = WebhookRequest(id=id, result=task)
+        return WebhookResponse(**await self._send_webhook_request(webhook_url, request))
         
             
     async def _send_request(self, request: JSONRPCRequest) -> dict[str, Any]:
@@ -160,6 +173,20 @@ class A2AClient:
                 # Image generation could take time, adding timeout
                 response = await client.post(
                     self.url, json=request.model_dump(), timeout=30
+                )
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as e:
+                raise A2AClientHTTPError(e.response.status_code, str(e)) from e
+            except json.JSONDecodeError as e:
+                raise A2AClientJSONError(str(e)) from e
+    
+    async def _send_webhook_request(self, webhook_url: str, request: WebhookRequest) -> dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            try:
+                # Image generation could take time, adding timeout
+                response = await client.post(
+                    webhook_url, json=request.model_dump(), timeout=30
                 )
                 response.raise_for_status()
                 return response.json()

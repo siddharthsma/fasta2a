@@ -61,3 +61,50 @@ class SmartMCPClient:
         if session_id:
             headers["x-session-id"] = session_id
         return headers
+
+
+
+'''
+@self.app.app.post("/callback")
+        async def callback(request: CallbackResponse):
+            
+            # This callback updates the task history and the state data in the state store for that task
+            
+            # Get task id and task
+            task_id = request.result.id
+            task = request.result
+
+            # Get state data based on task id
+            state_data = self.state_store.get_state(task_id)
+
+            # Extract the messages from the task artifacts
+            messages = []
+            if task.artifacts:
+                for artifact in task.artifacts:
+                    messages.append(Message(
+                        role="agent",
+                        parts=artifact.parts,
+                        metadata=artifact.metadata
+                    ))
+
+            # Update the history
+            history = state_data.task.history.copy()
+            history.extend(messages)
+            state_data.task.history = history
+
+            # Update context history with a strategy - this is the history that will be passed to an LLM call
+            context_history = self.history_update_strategy.update_history(
+                existing_history=state_data.context_history,
+                new_messages=messages
+            )
+
+            # Update the task
+            task.history = history
+
+            # Update state store
+            self.state_store.update_state(task_id, StateData(task_id=task_id, task=task, context_history=context_history))
+
+            # Call on_send_task
+            await self.on_send_task(request)
+
+'''

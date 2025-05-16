@@ -1,3 +1,5 @@
+# TODO: Implement a human agent that can be used to interact with the A2A server
+
 # Library imports
 from fastapi import Query
 from fastapi.responses import JSONResponse
@@ -10,7 +12,7 @@ from smarta2a.server.state_manager import StateManager
 from smarta2a.utils.types import StateData, SendTaskRequest, AgentCard, WebhookRequest, WebhookResponse, TextPart, DataPart, FilePart
 from smarta2a.client.a2a_client import A2AClient
 
-class A2AAgent:
+class A2AHuman:
     def __init__(
             self,
             name: str,
@@ -34,19 +36,17 @@ class A2AAgent:
         
         @self.app.app.get("/tasks")
         async def get_tasks(fields: Optional[str] = Query(None)):
-            state_store = self.state_manager.get_store()
+            state_store = self.state_mgr.get_store()
             tasks_data = state_store.get_all_tasks(fields)
             return JSONResponse(content=tasks_data)
         
-        @self.app.on_send_task(forward_to_webhook=False)
+        @self.app.on_send_task(forward_to_webhook=True)
         async def on_send_task(request: SendTaskRequest, state: StateData):
-            response = await self.model_provider.generate(state)
-            return response
+            return "Give me some time to respond"
         
         @self.app.webhook()
         async def on_webhook(request: WebhookRequest, state: StateData):
-            response = await self.model_provider.generate(state)
-            return response
+            pass
 
     def get_app(self):
         return self.app

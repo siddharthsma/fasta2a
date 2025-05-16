@@ -2,7 +2,7 @@
 from typing import Optional, List
 
 # Local imports
-from smarta2a.client.tools_manager import ToolsManager
+from smarta2a.utils.tools_manager import ToolsManager
 from smarta2a.utils.types import AgentCard
 
 def build_system_prompt(
