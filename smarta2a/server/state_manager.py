@@ -8,10 +8,10 @@ from smarta2a.utils.types import Message, StateData, Task, TaskStatus, TaskState
 from smarta2a.server.nats_client import NATSClient
 
 class StateManager:
-    def __init__(self, state_store: BaseStateStore, history_strategy: HistoryUpdateStrategy):
+    def __init__(self, state_store: BaseStateStore, history_strategy: HistoryUpdateStrategy, nats_server_url: Optional[str] = "nats://localhost:4222"):
         self.state_store = state_store
         self.strategy = history_strategy
-        self.nats_client = NATSClient(server_url="nats://localhost:4222")
+        self.nats_client = NATSClient(server_url=nats_server_url)
     
     async def load(self):
         await self.nats_client.connect()

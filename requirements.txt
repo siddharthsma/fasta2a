@@ -29,7 +29,7 @@ keyring==25.6.0
 Markdown==3.8
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
-mcp==1.9.0
+mcp==1.6.0
 mdurl==0.1.2
 mergedeep==1.3.4
 mkdocs==1.6.1
@@ -64,7 +64,7 @@ rfc3986==2.0.0
 rich==14.0.0
 setuptools==78.1.0
 six==1.17.0
--e git+https://github.com/siddharthsma/fasta2a.git@40cb525ad111a7a0e8964231f43507116139ae80#egg=smarta2a
+-e git+https://github.com/siddharthsma/fasta2a.git@6054a6dc51a6b0b69a2a5c51ac970e41a5b6257c#egg=smarta2a
 sniffio==1.3.1
 sse-starlette==2.2.1
 starlette==0.46.2

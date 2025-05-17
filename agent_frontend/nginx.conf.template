@@ -3,6 +3,10 @@ events {
 }
 
 http {
+    
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    
     server {
         listen 80;
         server_name localhost;
@@ -16,6 +20,13 @@ http {
 
         # Proxy API requests
         location /rpc {
+            proxy_pass ${SERVER_URL};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        # Proxy API requests
+        location /tasks {
             proxy_pass ${SERVER_URL};
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;

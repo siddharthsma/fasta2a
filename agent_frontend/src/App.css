@@ -355,3 +355,24 @@ button[type="submit"]:hover {
 .markdown-content th {
   background-color: #f8f9fa;
 }
+
+/*
+add a red dot next to the chat title if there are updates.
+*/
+.update-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: #ff4757;
+  border-radius: 50%;
+  margin-left: 8px;
+}
+
+.message.pending {
+  opacity: 0.6;
+}
+
+.message.error {
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+}

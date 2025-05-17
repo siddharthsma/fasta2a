@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Generate nginx.conf from template
-envsubst '${SERVER_URL} ${NATS_WS_URL}' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf
+envsubst '${SERVER_URL} ${NATS_WS_URL}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 
 # Generate runtime configuration using environment variables
 cat <<EOF > /usr/share/nginx/html/config.js

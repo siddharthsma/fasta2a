@@ -10,11 +10,14 @@ RUN npm run build
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
 
+# Install envsubst for template variable substitution
+RUN apk add --no-cache gettext
+
 # Copy built assets from the builder stage
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Copy Nginx config
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy Nginx config TEMPLATE (not the final file)
+COPY nginx.conf.template /etc/nginx/nginx.conf.template
 
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh

@@ -1,2 +1,3 @@
 python-dotenv
-smarta2a==0.4.1
+nats-py==2.10.0
+smarta2a==0.4.2

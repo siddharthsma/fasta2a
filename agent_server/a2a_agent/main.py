@@ -27,6 +27,9 @@ agent_description = os.getenv("AGENT_DESCRIPTION", "A friendly agent that can he
 agent_url = os.getenv("AGENT_URL", "http://openai-agent/rpc")
 agent_skills = [AgentSkill(**skill) for skill in json.loads(os.getenv("SKILLS_JSON", "[]"))]
 
+# NATS settings
+nats_server_url = os.getenv("NATS_SERVER_URL", "nats://openai-agent-nats:4222")
+
 agent_card = AgentCard(
     name=agent_name,
     description=agent_description,
@@ -44,7 +47,7 @@ openai_provider = OpenAIProvider(
     agent_base_urls=collaborating_agent_urls
 )
 
-state_manager = StateManager(state_store=InMemoryStateStore(), history_strategy=AppendStrategy())
+state_manager = StateManager(state_store=InMemoryStateStore(), history_strategy=AppendStrategy(), nats_server_url=nats_server_url)
 
 # Create the agent
 agent = A2AAgent(

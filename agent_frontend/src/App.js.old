@@ -19,10 +19,16 @@ function App() {
   const messagesEndRef = useRef(null);
   const natsConnection = useRef(null);
   const subscription = useRef(null);
-  const [hasUpdates, setHasUpdates] = useState(new Set());
 
-  
-  // Add useEffect for fetching the tasks and updating the chats - on initial load.
+  // Add scroll effect
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]); // Trigger when messages change
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   useEffect(() => {
     const fetchTasks = async () => {
       try {
@@ -51,7 +57,7 @@ function App() {
   }, []);
 
 
-  // Add useEffect for connecting to the NATS server and subscribing to updates.
+  // Add useEffect for connection management
   useEffect(() => {
     const setupNATS = async () => {
       try {
@@ -83,52 +89,26 @@ function App() {
     };
   }, []);
 
-  // Add scroll effect
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]); // Trigger when messages change
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
   // Handle NATS updates
   const handleNATSUpdate = (update) => {
-    /*
-    TODO: when a new update arrives, there are 3 cases:
-    1. the update is associated with a taskId that is already in the chats and the current active chat is the same as the taskId.
-    2. the update is associated with a taskId that is not in the chats.
-    3. the update is associated with a taskId that is in the chats, but the taskId is not the current active chat.
-
-    In case 1, we should update the messages.
-    In case 2, we should create a new chat and update the chats. This should update the sidebar (creating a new entry in the sidebar).
-    In case 3, we should update the sidebar with a red dot next to the chat showing that there is a new message/s. 
-    */
-    setChats(prevChats => {
-      const existingChat = prevChats.find(c => c.id === update.taskId);
-      const isActive = activeChat === update.taskId;
-      
-      // Case 1: Update active chat
-      if (existingChat && isActive) {
-        setMessages(prev => [...prev, ...update.messages]);
-      }
-      // Case 2: New chat creation
-      else if (!existingChat) {
-        const newChat = {
-          id: update.taskId,
-          sessionId: update.sessionId,
-          title: update.metadata?.task_name || 'New Task',
-          timestamp: new Date(),
-          hasUpdates: false
+    setMessages((prev) => {
+      return prev.map((msg) => {
+        // Match using BOTH task ID and temporary pattern
+        const isTargetMessage = 
+          msg.id === `temp-${update.taskId}` || // Match temp ID
+          msg.id === update.taskId; // Match final ID
+  
+        if (!isTargetMessage) return msg;
+        if (msg.status === 'complete') return msg;
+  
+        return {
+          ...msg,
+          id: update.complete ? update.taskId : msg.id, // Use actual taskId
+          parts: update.parts?.length > 0 ? update.parts : msg.parts,
+          status: update.complete ? 'complete' : 'streaming',
+          timestamp: new Date()
         };
-        return [...prevChats, newChat];
-      }
-      // Case 3: Update existing non-active chat
-      else if (existingChat && !isActive) {
-        setHasUpdates(prev => new Set([...prev, update.taskId]));
-      }
-      
-      return prevChats;
+      });
     });
   };
 
@@ -141,108 +121,82 @@ function App() {
   };
 
   const handleSubmit = async (e) => {
-    /* 
-    TODO: The main job of this callback is to send a post request to http://localhost/rpc .
-    If this is a new task and therefore, currentTaskId is null, it should create a new taskId and sessionId (uuid gen) and also create a new sidebar entry for the new task by updating chats.
-    It should also set the chat as the active chat and update the isInitialState to false. Offcourse the post request should be sent with the new taskId and sessionId.
-    If the currentTaskId is set then nothing needs to be done apart from sending the post request to http://localhost/rpc.
-    */
     e.preventDefault();
     if (!input.trim()) return;
-
+  
     try {
-      const tempMessageId = uuidv4();
+      // Generate fresh IDs for every new task
+      const isNewSession = !currentSessionId;
+      const sessionId = currentSessionId || uuidv4();
+      const taskId = isNewSession ? uuidv4() : currentTaskId;
+  
+      // Clear input IMMEDIATELY
+      setInput('');
+  
+      // Create user message
       const userMessage = {
-        id: tempMessageId,
+        id: Date.now(),
         role: 'user',
         parts: [{ type: 'text', text: input }],
+        status: 'complete',
+        timestamp: new Date()
+      };
+  
+      // Create temporary agent message with NEW task ID
+      const tempAgentMessage = {
+        id: `temp-${taskId}`,
+        role: 'agent',
+        parts: [{ type: 'text', text: '' }],
         status: 'pending',
         timestamp: new Date()
       };
-
-      let requestBody;
-
-      // For new tasks
-      if (!currentTaskId) {
-        const newTaskId = uuidv4();
-        const newSessionId = uuidv4();
-        const taskName = truncateTitle(input);
-        const metadata = { task_name: taskName };
-
-        // Add temporary message
-        setMessages([userMessage]);
-        
-        // Create new chat entry
-        const newChat = {
-          id: newTaskId,
-          sessionId: newSessionId,
-          title: taskName,
-          timestamp: new Date(),
-          hasUpdates: false
-        };
-        setChats(prev => [newChat, ...prev]);
-        setActiveChat(newTaskId);
-        setCurrentTaskId(newTaskId);
-        setCurrentSessionId(newSessionId);
-        setIsInitialState(false);
-
-        // Build request with proper parameters
-        requestBody = buildSendRequest(
-          input,         // message content
-          newSessionId,   // sessionId
-          newTaskId,      // taskId
-          metadata        // metadata
-        );
-      } else {
-        // Existing task - append message
-        setMessages(prev => [...prev, userMessage]);
-
-        // Build request for existing task
-        requestBody = buildSendRequest(
-          input,
-          currentSessionId,
-          currentTaskId,
-          {} // empty metadata for existing tasks
-        );
-      }
-
+  
+      // Update state with both messages
+      setMessages(prev => [...prev, userMessage, tempAgentMessage]);
+      setIsInitialState(false);
+  
+  
+      // Build request with fresh IDs
+      const requestBody = buildSendRequest(
+        input,
+        sessionId,
+        taskId,
+        { task_name: truncateTitle(input) }
+      );
+  
+      // Send request
       const response = await fetch('http://localhost/rpc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
-
-
-
+  
       if (!response.ok) throw new Error('Request failed');
-      
-      const responseData = await response.json();
-      const { messages: serverMessages } = parseSendResponse(responseData);
-
-      // Replace temporary message with actual response
-      setMessages(prev => [
-        ...prev.map(msg => 
-          msg.id === tempMessageId 
-            ? { ...msg, status: 'complete' } // Update user message status
-            : msg
-        ),
-        // Add agent response as new message
-        ...serverMessages.map(msg => ({
-          ...msg,
-          id: uuidv4(),
-          timestamp: new Date(),
-          status: 'complete'
-        }))
-      ]);
-
-      setInput('');
+  
+      // Add to chat history if new session
+      if (isNewSession) {
+        const newChat = {
+          id: taskId,
+          sessionId,
+          title: truncateTitle(input),
+          timestamp: new Date()
+        };
+        setChats(prev => [...prev, newChat]);
+        setActiveChat(taskId);
+      }
+  
     } catch (error) {
-      console.error('Submit error:', error);
-      setMessages(prev => prev.map(msg => 
-        msg.status === 'pending' 
-          ? { ...msg, status: 'error', parts: [{ type: 'text', text: 'Message failed to send' }] }
-          : msg
-      ));
+      // Update error state for the temporary message
+      setMessages(prev => prev.map(msg => {
+        if (msg.id.startsWith('temp-')) {
+          return {
+            ...msg,
+            status: 'error',
+            parts: [{ type: 'text', text: 'Failed to get response' }]
+          };
+        }
+        return msg;
+      }));
     }
   };
   
@@ -253,6 +207,16 @@ const handleChatSelect = async (chat) => {
     // Clear current chat
     setMessages([]);
     setIsInitialState(false);
+    
+    // Set loading state
+    const loadingMessage = {
+      id: `loading-${Date.now()}`,
+      role: 'system',
+      parts: [{ type: 'text', text: 'Loading conversation...' }],
+      status: 'pending',
+      timestamp: new Date()
+    };
+    setMessages([loadingMessage]);
 
     // Fetch chat history
     const requestBody = buildGetRequest(chat.id);
@@ -305,8 +269,6 @@ const handleChatSelect = async (chat) => {
           daysAgo={0}
           activeChat={activeChat}
           onChatSelect={handleChatSelect}
-          hasUpdates={hasUpdates}
-          setHasUpdates={setHasUpdates}
         />
         <ChatSection 
           title="Yesterday" 
@@ -314,8 +276,6 @@ const handleChatSelect = async (chat) => {
           daysAgo={1}
           activeChat={activeChat}
           onChatSelect={handleChatSelect}
-          hasUpdates={hasUpdates}
-          setHasUpdates={setHasUpdates}
         />
         <ChatSection 
           title="Previous 7 Days" 
@@ -323,8 +283,6 @@ const handleChatSelect = async (chat) => {
           daysAgo={7}
           activeChat={activeChat}
           onChatSelect={handleChatSelect}
-          hasUpdates={hasUpdates}
-          setHasUpdates={setHasUpdates}
         />
         <ChatSection 
           title="Older" 
@@ -332,8 +290,6 @@ const handleChatSelect = async (chat) => {
           daysAgo={8}
           activeChat={activeChat}
           onChatSelect={handleChatSelect}
-          hasUpdates={hasUpdates}
-          setHasUpdates={setHasUpdates}
         />
         </div>
       </div>
@@ -472,9 +428,7 @@ const ChatSection = ({
   chats, 
   daysAgo, 
   activeChat,  // Add prop
-  onChatSelect,
-  hasUpdates,
-  setHasUpdates
+  onChatSelect  // Add prop
 }) => {
   const now = new Date();
   const filteredChats = chats.filter(chat => {
@@ -498,22 +452,9 @@ const ChatSection = ({
           <li 
             key={chat.id} 
             className={`chat-item ${activeChat === chat.id ? 'active' : ''}`}
-            onClick={() => {
-              onChatSelect(chat);
-
-              // Clear update notification when selecting
-              setHasUpdates(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(chat.id);
-                return newSet;
-              });
-            
-            }}  // Use passed prop
+            onClick={() => onChatSelect(chat)}  // Use passed prop
           >
             {chat.title}
-            {hasUpdates.has(chat.id) && ( // NEW: Notification dot
-              <span className="update-dot"></span>
-            )}
           </li>
         ))}
       </ul>
