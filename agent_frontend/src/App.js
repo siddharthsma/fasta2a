@@ -37,7 +37,7 @@ function App() {
         const transformedChats = tasks.map(task => ({
           id: task.id,
           sessionId: task.sessionId,
-          title: task.metadata?.task_name || 'Untitled Task',
+          title: task.metadata?.taskName || 'Untitled Task',
           timestamp: new Date(task.status.timestamp)
         }));
   
@@ -117,7 +117,7 @@ function App() {
         const newChat = {
           id: update.taskId,
           sessionId: update.sessionId,
-          title: update.metadata?.task_name || 'New Task',
+          title: update.taskName || 'New Task',
           timestamp: new Date(),
           hasUpdates: false
         };
@@ -167,7 +167,7 @@ function App() {
         const newTaskId = uuidv4();
         const newSessionId = uuidv4();
         const taskName = truncateTitle(input);
-        const metadata = { task_name: taskName };
+        const metadata = { taskName: taskName };
 
         // Add temporary message
         setMessages([userMessage]);

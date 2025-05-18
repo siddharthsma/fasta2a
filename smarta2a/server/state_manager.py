@@ -168,6 +168,7 @@ class StateManager:
         """Prepare NATS message payload from state data"""
         return {
             "taskId": state.task_id,
+            "taskName": state.task.metadata.get("taskName", ""),
             "parts": self._extract_artifact_parts(state.task),
             "complete": state.task.status.state == TaskState.COMPLETED
         }
