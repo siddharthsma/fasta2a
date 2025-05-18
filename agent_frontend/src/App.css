@@ -376,3 +376,21 @@ add a red dot next to the chat title if there are updates.
   color: #ff6b6b;
   border-color: #ff6b6b;
 }
+
+
+/* Ensure messages maintain their height during transitions */
+.message-content {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+/* Fade effect for pending messages */
+.message.pending {
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.message.complete {
+  opacity: 1;
+}

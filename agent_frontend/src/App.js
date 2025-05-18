@@ -396,15 +396,10 @@ const handleChatSelect = async (chat) => {
 }
 
 const Message = ({ message }) => (
-  <div className={`message ${message.role}`}>
-    {message.status === 'pending' ? (
-      <div className="loading-dots">
-        <div className="dot"></div>
-        <div className="dot"></div>
-        <div className="dot"></div>
-      </div>
-    ) : (
-      message.parts.map((part, index) => (
+  <div className={`message ${message.role} ${message.status}`}>
+    {/* Message Content - Always Visible */}
+    <div className="message-content">
+      {message.parts.map((part, index) => (
         part.type === 'text' ? (
           <div className="markdown-content" key={index}>
             <ReactMarkdown 
@@ -443,7 +438,16 @@ const Message = ({ message }) => (
         ) : (
           <div key={index}>Unsupported content type</div>
         )
-      ))
+      ))}
+    </div>
+
+    {/* Loading Dots - Only for Pending Messages */}
+    {message.status === 'pending' && (
+      <div className="loading-dots">
+        <div className="dot"></div>
+        <div className="dot"></div>
+        <div className="dot"></div>
+      </div>
     )}
   </div>
 );
