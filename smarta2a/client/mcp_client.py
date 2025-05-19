@@ -37,27 +37,30 @@ class MCPClient:
         command = None
         args = [server_script_path]
         
-        # Determine if the server is a file path or npm package
-        if server_script_path.startswith("@") or "/" not in server_script_path:
-            # Assume it's an npm package
-            is_javascript = True
-            args = shlex.split(server_script_path)
-            command = "npx"
+        # Split the path to check for package manager commands
+        split_args = shlex.split(server_script_path)
+        if split_args and split_args[0] in ("npm", "npx", "uv", "uvx"):
+            # Handle package manager command
+            is_javascript = True  # Assuming uv/uvx are JS-related tools
+            command = split_args[0]
+            args = split_args[1:] if len(split_args) > 1 else []
         else:
-            # It's a file path
+            # Check file extensions
             is_python = server_script_path.endswith(".py")
             is_javascript = server_script_path.endswith(".js")
             if not (is_python or is_javascript):
-                raise ValueError("Server script must be a .py, .js file or npm package.")
-        
-            command = "python" if is_python else "node"
+                raise ValueError(
+                    "Server script must be a .py, .js file, or a npm/npx/uv/uvx command."
+                )
             
+            command = "python" if is_python else "node"
+            args = [server_script_path]
+
         server_params = StdioServerParameters(
             command=command,
             args=args,
             env=None
         )
-        print(server_params)
 
         # Start the server
         stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))

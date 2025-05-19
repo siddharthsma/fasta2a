@@ -25,7 +25,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - MODEL=gpt-4o-mini
       - BASE_SYSTEM_PROMPT=You are a cheerful assistant that specializes in Airbnb queries
-      - MCP_SERVER_URLS=["@openbnb/mcp-server-airbnb --ignore-robots-txt"]
+      - MCP_SERVER_URLS=["npx @openbnb/mcp-server-airbnb --ignore-robots-txt"]
       - COLLABORATING_AGENT_URLS=[]
       - AGENT_NAME=airbnb-agent
       - AGENT_URL=http://airbnb-agent/rpc

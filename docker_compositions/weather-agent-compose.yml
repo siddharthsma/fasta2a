@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+
+  weather-agent-frontend:
+      image: sidambegaonkar/a2aagent-frontend:alphav1
+      networks:
+        - a2a-network
+      ports:
+        - "80:80"
+      environment:
+        - SERVER_URL=http://weather-agent:8000
+        - NATS_WS_URL=http://weather-agent-nats:9222
+      depends_on:
+        - weather-agent-nats
+        - weather-agent
+    
+  weather-agent:  # Example companion service
+    image: sidambegaonkar/a2aagent-inmemory-append-server:alphav1
+    networks:
+      - a2a-network
+    ports:
+     - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MODEL=gpt-4o-mini
+      - BASE_SYSTEM_PROMPT=You are a cheerful assistant that specializes in weather queries
+      - MCP_SERVER_URLS=["npx -y supergateway --sse https://mcp.pipedream.net/77239217-f8a1-4239-99cd-a3a69598f2ea/openweather_api"]
+      - COLLABORATING_AGENT_URLS=[]
+      - AGENT_NAME=weather-agent
+      - AGENT_URL=http://weather-agent/rpc
+      - AGENT_DESCRIPTION=A weather agent that helps with queries
+      - SKILLS_JSON=[{"id":"weather_by_location","name":"Get current weather by location","description":"Can get current weather for a given latitude and longitude"},{"id":"weather_forecast_by_location","name":"Get weather forecast by location","description":"Can get weather forecast for a given latitude and longitude"},{"id":"weather_by_zipcode","name":"Get current weather by zipcode","description":"Can get current weather for a given zipcode"},{"id":"weather_forecast_by_zipcode","name":"Get weather forecast by zipcode","description":"Can get weather forecast for a given zipcode"}]
+      - NATS_SERVER_URL=nats://weather-agent-nats:4222
+    depends_on:
+      - weather-agent-nats
+  
+  weather-agent-nats:
+    image: nats:latest
+    volumes:
+      - ./nats-server.conf:/etc/nats/nats-server.conf
+    command: -c /etc/nats/nats-server.conf
+    networks:
+      - a2a-network
+
+networks:
+  a2a-network:
+    driver: bridge

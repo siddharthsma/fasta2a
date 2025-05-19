@@ -134,17 +134,6 @@ class SmartA2A:
 
             return response.model_dump()
             
-            
-        '''
-        
-        if self.has_frontend:
-            if not os.path.exists("frontend/index.html"):
-                raise FileNotFoundError("frontend/index.html does not exist")
-            
-            @self.app.get("/")
-            async def get_frontend():
-                return FileResponse("frontend/index.html")
-        '''
         
     '''
     Setup the decorators for the various A2A methods.

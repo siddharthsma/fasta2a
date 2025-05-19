@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+
+  delegator-agent-frontend:
+      image: sidambegaonkar/a2aagent-frontend:alphav1
+      networks:
+        - a2a-network
+      ports:
+        - "80:80"
+      environment:
+        - SERVER_URL=http://delegator-agent:8000
+        - NATS_WS_URL=http://delegator-agent-nats:9222
+      depends_on:
+        - delegator-agent-nats
+        - delegator-agent
+    
+  delegator-agent:  # Example companion service
+    image: sidambegaonkar/a2aagent-inmemory-append-server:alphav1
+    networks:
+      - a2a-network
+    ports:
+     - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MODEL=gpt-4o-mini
+      - BASE_SYSTEM_PROMPT=You are a cheerful assistant that can talk to other agents and delegate tasks to them.
+      - MCP_SERVER_URLS=[]
+      - COLLABORATING_AGENT_URLS=["http://weather-agent:8000", "http://airbnb-agent:8000"]
+      - AGENT_NAME=delegator-agent
+      - AGENT_URL=http://delegator-agent/rpc
+      - AGENT_DESCRIPTION=A delegator agent that helps with queries
+      - SKILLS_JSON=[]
+      - NATS_SERVER_URL=nats://delegator-agent-nats:4222
+    depends_on:
+      - delegator-agent-nats
+  
+  delegator-agent-nats:
+    image: nats:latest
+    volumes:
+      - ./nats-server.conf:/etc/nats/nats-server.conf
+    command: -c /etc/nats/nats-server.conf
+    networks:
+      - a2a-network
+
+networks:
+  a2a-network:
+    driver: bridge

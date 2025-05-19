@@ -31,7 +31,7 @@ openai_provider = OpenAIProvider(
     api_key=api_key,
     model="gpt-4o-mini",
     base_system_prompt="You are a cheerful assistant that specialises in helping with Airbnb related queries",
-    mcp_server_urls_or_paths=["@openbnb/mcp-server-airbnb --ignore-robots-txt"],
+    mcp_server_urls_or_paths=["npx @openbnb/mcp-server-airbnb --ignore-robots-txt"],
 )
 
 state_manager = StateManager(state_store=InMemoryStateStore(), history_strategy=AppendStrategy())
