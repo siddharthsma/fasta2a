@@ -147,6 +147,7 @@ class OpenAIProvider(BaseLLMProvider):
                 "description": tool.description,
                 "parameters": tool.inputSchema,
             })
+        
         return functions
         
 
@@ -192,9 +193,10 @@ class OpenAIProvider(BaseLLMProvider):
             try:
                 override_args = {
                     'id': state.task_id,
-                    'sessionId': state.task.sessionId
+                    'sessionId': state.task.sessionId,
+                    'metadata': state.task.metadata
                 }
-
+                
                 tool_result = await self.tools_manager.call_tool(fn_name, fn_args, override_args)
             except Exception as e:
                 tool_result = {"content": f"Error calling {fn_name}: {e}"}

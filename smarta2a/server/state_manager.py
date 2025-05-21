@@ -166,6 +166,9 @@ class StateManager:
 
     def _prepare_update_payload(self, state: StateData) -> Dict[str, Any]:
         """Prepare NATS message payload from state data"""
+        print("--- state.task ---")
+        print(state.task)
+        print("--- end of state.task ---")
         return {
             "taskId": state.task_id,
             "taskName": state.task.metadata.get("taskName", ""),

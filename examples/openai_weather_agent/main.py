@@ -32,7 +32,7 @@ openai_provider = OpenAIProvider(
     api_key=api_key,
     model="gpt-4o-mini",
     base_system_prompt="You are a cheerful assistant that specialises in helping with weather related queries",
-    mcp_server_urls_or_paths=["/Users/apple/Desktop/Code/weather/weather.py"],
+    mcp_server_urls_or_paths=["npx -y supergateway --sse https://mcp.pipedream.net/77239217-f8a1-4239-99cd-a3a69598f2ea/openweather_api"],
 )
 
 state_manager = StateManager(state_store=InMemoryStateStore(), history_strategy=AppendStrategy())

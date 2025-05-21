@@ -20,7 +20,7 @@ airbnb_agent_card = AgentCard(
     name="airbnb_agent",
     description="An Airbnb agent that can help with Airbnb related queries",
     version="0.1.0",
-    url="http://localhost:8000/rpc",
+    url="http://localhost:8002/rpc",
     capabilities=AgentCapabilities(),
     skills=[AgentSkill(id="search_listings", name="Search listings", description="Search for Airbnb listings"),
             AgentSkill(id="get_listing_details", name="Get listing details", description="Get detailed information about a listing")]
