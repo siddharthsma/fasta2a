@@ -25,8 +25,9 @@ function App() {
   // Add useEffect for fetching the tasks and updating the chats - on initial load.
   useEffect(() => {
     const fetchTasks = async () => {
+      
       try {
-        const response = await fetch('http://localhost/tasks?fields=id,status,metadata', {
+        const response = await fetch(`${API_CONFIG.SERVER_URL}/tasks?fields=id,status,metadata`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -56,7 +57,7 @@ function App() {
     const setupNATS = async () => {
       try {
         natsConnection.current = await connect({
-          servers: ['ws://localhost/ws']
+          servers: [API_CONFIG.NATS_WS_URL]
         });
         
         subscription.current = natsConnection.current.subscribe('state.updates');
@@ -206,7 +207,7 @@ function App() {
         );
       }
 
-      const response = await fetch('http://localhost/rpc', {
+      const response = await fetch(`${API_CONFIG.SERVER_URL}/rpc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
@@ -256,7 +257,7 @@ const handleChatSelect = async (chat) => {
 
     // Fetch chat history
     const requestBody = buildGetRequest(chat.id);
-    const response = await fetch('http://localhost/rpc', {
+    const response = await fetch(`${API_CONFIG.SERVER_URL}/rpc`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody)

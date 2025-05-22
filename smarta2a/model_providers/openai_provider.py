@@ -160,15 +160,19 @@ class OpenAIProvider(BaseLLMProvider):
         messages = [msg if isinstance(msg, Message) else Message(**msg) for msg in state.context_history]
         openai_messages = self._convert_messages(messages)
         max_iterations = 30
+        openai_functions = self._format_openai_functions()
 
         for _ in range(max_iterations):
-            # Call ChatCompletion with functions (not 'tools')
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=openai_messages,
-                functions=self._format_openai_functions(),
-                **kwargs
-            )
+
+            create_kwargs = {
+                "model": self.model,
+                "messages": openai_messages,
+                **kwargs  # Merge with existing kwargs
+            }
+            if openai_functions:
+                create_kwargs["functions"] = openai_functions  # Add functions only if non-empty
+
+            response = await self.client.chat.completions.create(**create_kwargs)
             msg = response.choices[0].message
 
             # If no function call, return content

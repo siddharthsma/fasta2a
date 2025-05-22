@@ -84,7 +84,7 @@ class SmartA2A:
     def _setup_cors(self):
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["http://localhost:3000"],
+            allow_origins=["http://localhost:3000", "http://localhost", "http://localhost:8000"],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],

@@ -94,6 +94,9 @@ class ToolsManager:
             print("--- new_args ---")
             print(new_args)
             print("--- end of new_args ---")
+            print("--- tool_name ---")
+            print(tool_name)
+            print("--- end of tool_name ---")
             result = await client.call_tool(tool_name, new_args)
             print("--- result ---")
             print(result)
@@ -102,6 +105,11 @@ class ToolsManager:
 
         except Exception as e:
             # This will catch ANY error in the body above
+            print("--- EXCEPTION CAUGHT ---")
+            print(f"Error Type: {type(e).__name__}")
+            print(f"Error Message: {str(e)}")
+            print("--- END OF EXCEPTION DETAILS ---")
+        
             raise
     
     def _get_tool_name(self, tool_key: str) -> str:
