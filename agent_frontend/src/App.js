@@ -20,6 +20,7 @@ function App() {
   const natsConnection = useRef(null);
   const subscription = useRef(null);
   const [hasUpdates, setHasUpdates] = useState(new Set());
+  const [attachedFiles, setAttachedFiles] = useState([]);
 
   
   // Add useEffect for fetching the tasks and updating the chats - on initial load.
@@ -149,17 +150,45 @@ function App() {
     If the currentTaskId is set then nothing needs to be done apart from sending the post request to http://localhost/rpc.
     */
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() && attachedFiles.length === 0) return;
 
     try {
       const tempMessageId = uuidv4();
+
+      // Convert files to base64
+      const filesWithBase64 = await Promise.all(
+        attachedFiles.map(async (file) => {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = error => reject(error);
+            reader.readAsDataURL(file);
+          });
+          return {
+            name: file.name,
+            type: file.type,
+            base64 
+          };
+        })
+      );
+
       const userMessage = {
         id: tempMessageId,
         role: 'user',
-        parts: [{ type: 'text', text: input }],
+        parts: [
+          ...(input.trim() ? [{ type: 'text', text: input }] : []),
+          ...attachedFiles.map(file => ({
+            type: 'file',
+            file: {
+              name: file.name,
+              mimeType: file.type
+            }
+          }))
+        ],
         status: 'pending',
         timestamp: new Date()
       };
+  
 
       let requestBody;
 
@@ -167,7 +196,7 @@ function App() {
       if (!currentTaskId) {
         const newTaskId = uuidv4();
         const newSessionId = uuidv4();
-        const taskName = truncateTitle(input);
+        const taskName = truncateTitle(input || attachedFiles[0]?.name || 'File Upload');
         const metadata = { taskName: taskName };
 
         // Add temporary message
@@ -189,10 +218,11 @@ function App() {
 
         // Build request with proper parameters
         requestBody = buildSendRequest(
-          input,         // message content
-          newSessionId,   // sessionId
-          newTaskId,      // taskId
-          metadata        // metadata
+          input,
+          filesWithBase64,
+          newSessionId,
+          newTaskId,
+          metadata
         );
       } else {
         // Existing task - append message
@@ -201,9 +231,10 @@ function App() {
         // Build request for existing task
         requestBody = buildSendRequest(
           input,
+          filesWithBase64,
           currentSessionId,
           currentTaskId,
-          {} // empty metadata for existing tasks
+          {}
         );
       }
 
@@ -237,6 +268,8 @@ function App() {
       ]);
 
       setInput('');
+      setAttachedFiles([]);
+
     } catch (error) {
       console.error('Submit error:', error);
       setMessages(prev => prev.map(msg => 
@@ -283,6 +316,17 @@ const handleChatSelect = async (chat) => {
       timestamp: new Date()
     }]);
   }
+};
+
+// Add file handler
+const handleFileUpload = (e) => {
+  const files = Array.from(e.target.files);
+  setAttachedFiles(prev => [...prev, ...files]);
+};
+
+// Add file removal handler
+const removeFile = (fileName) => {
+  setAttachedFiles(prev => prev.filter(f => f.name !== fileName));
 };
 
 
@@ -350,18 +394,60 @@ const handleChatSelect = async (chat) => {
             <h1>What can I help you with?</h1>
             <div className="input-container centered">
               <form onSubmit={handleSubmit}>
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit(e);
-                  }
-                }}
-                placeholder="Type your message here..."
-              />
-                <button type="submit">Send</button>
+                <div className="message-input-wrapper">
+                  {attachedFiles.length > 0 && (
+                    <div className="attached-files">
+                      {attachedFiles.map((file) => (
+                        <div key={file.name} className="file-pill">
+                          <span>{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeFile(file.name)}
+                            className="remove-file"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="input-area">
+                    <textarea
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSubmit(e);
+                        }
+                      }}
+                      placeholder="Type your message here..."
+                      rows="1"
+                      onInput={(e) => {
+                        e.target.style.height = 'auto';
+                        e.target.style.height = e.target.scrollHeight + 'px';
+                      }}
+                    />
+                    <div className="button-container">
+                      <label className="file-upload-button">
+                        <input
+                          type="file"
+                          multiple
+                          onChange={handleFileUpload}
+                          style={{ display: 'none' }}
+                        />
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="file-upload-icon">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                        </svg>
+                      </label>
+                      <button type="submit" className="send-button">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" className="h-4 w-4">
+                          <path d="M.5 1.163A1 1 0 0 1 1.97.28l12.868 6.837a1 1 0 0 1 0 1.766L1.969 15.72A1 1 0 0 1 .5 14.836V10.33a1 1 0 0 1 .816-.983L8.5 8 1.316 6.653A1 1 0 0 1 .5 5.67V1.163Z" fill="currentColor"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </form>
             </div>
           </div>
@@ -369,24 +455,66 @@ const handleChatSelect = async (chat) => {
           <>
             <div className="chat-messages">
               {messages.map((message) => (
-                <Message key={message.id} message={message} />  // Changed from timestamp to id
+                <Message key={message.id} message={message} />
               ))}
               <div ref={messagesEndRef} />
             </div>
             <div className="input-container">
               <form onSubmit={handleSubmit}>
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit(e);
-                  }
-                }}
-                placeholder="Type your message here..."
-              />
-                <button type="submit">Send</button>
+                <div className="message-input-wrapper">
+                  {attachedFiles.length > 0 && (
+                    <div className="attached-files">
+                      {attachedFiles.map((file) => (
+                        <div key={file.name} className="file-pill">
+                          <span>{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeFile(file.name)}
+                            className="remove-file"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="input-area">
+                    <textarea
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSubmit(e);
+                        }
+                      }}
+                      placeholder="Type your message here..."
+                      rows="1"
+                      onInput={(e) => {
+                        e.target.style.height = 'auto';
+                        e.target.style.height = e.target.scrollHeight + 'px';
+                      }}
+                    />
+                    <div className="button-container">
+                      <label className="file-upload-button">
+                        <input
+                          type="file"
+                          multiple
+                          onChange={handleFileUpload}
+                          style={{ display: 'none' }}
+                        />
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="file-upload-icon">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                        </svg>
+                      </label>
+                      <button type="submit" className="send-button">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" className="h-4 w-4">
+                          <path d="M.5 1.163A1 1 0 0 1 1.97.28l12.868 6.837a1 1 0 0 1 0 1.766L1.969 15.72A1 1 0 0 1 .5 14.836V10.33a1 1 0 0 1 .816-.983L8.5 8 1.316 6.653A1 1 0 0 1 .5 5.67V1.163Z" fill="currentColor"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </form>
             </div>
           </>
@@ -400,48 +528,63 @@ const Message = ({ message }) => (
   <div className={`message ${message.role} ${message.status}`}>
     {/* Message Content - Always Visible */}
     <div className="message-content">
-      {message.parts.map((part, index) => (
-        part.type === 'text' ? (
-          <div className="markdown-content" key={index}>
-            <ReactMarkdown 
-              remarkPlugins={[remarkGfm]}
-              components={{
-                code({ node, inline, className, children, ...props }) {
-                  return !inline ? (
-                    <div className="code-block">
-                      <code className={className} {...props}>
+      {message.parts.map((part, index) => {
+        if (part.type === 'text') {
+          return (
+            <div className="markdown-content" key={index}>
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ node, inline, className, children, ...props }) {
+                    return !inline ? (
+                      <div className="code-block">
+                        <code className={className} {...props}>
+                          {children}
+                        </code>
+                      </div>
+                    ) : (
+                      <code className="inline-code" {...props}>
                         {children}
                       </code>
-                    </div>
-                  ) : (
-                    <code className="inline-code" {...props}>
-                      {children}
-                    </code>
-                  );
-                },
-                pre({ node, children, ...props }) {
-                  return <pre className="pre-block" {...props}>{children}</pre>;
-                },
-                blockquote({ node, children, ...props }) {
-                  return <blockquote className="quote-block" {...props}>{children}</blockquote>;
-                },
-                ol({ node, children, ...props }) {
-                  return <ol className="numbered-list" {...props}>{children}</ol>;
-                },
-                ul({ node, children, ...props }) {
-                  return <ul className="bulleted-list" {...props}>{children}</ul>;
-                }
-              }}
-            >
-              {part.text}
-            </ReactMarkdown>
-          </div>
-        ) : (
-          <div key={index}>Unsupported content type</div>
-        )
-      ))}
+                    );
+                  },
+                  pre({ node, children, ...props }) {
+                    return <pre className="pre-block" {...props}>{children}</pre>;
+                  },
+                  blockquote({ node, children, ...props }) {
+                    return <blockquote className="quote-block" {...props}>{children}</blockquote>;
+                  },
+                  ol({ node, children, ...props }) {
+                    return <ol className="numbered-list" {...props}>{children}</ol>;
+                  },
+                  ul({ node, children, ...props }) {
+                    return <ul className="bulleted-list" {...props}>{children}</ul>;
+                  }
+                }}
+              >
+                {part.text}
+              </ReactMarkdown>
+            </div>
+          );
+        }
+        if (part.type === 'file') {
+          return (
+            <div key={index} className="file-message">
+              <div className="file-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
+              </div>
+              <div className="file-details">
+                <span className="file-name">{part.file.name}</span>
+                <span className="file-type">{part.file.mimeType}</span>
+              </div>
+            </div>
+          );
+        }
+        return <div key={index}>Unsupported content type</div>;
+      })}
     </div>
-
     {/* Loading Dots - Only for Pending Messages */}
     {message.status === 'pending' && (
       <div className="loading-dots">
@@ -452,6 +595,7 @@ const Message = ({ message }) => (
     )}
   </div>
 );
+
 
 const ModeSelector = ({ mode, setMode }) => {
   return (

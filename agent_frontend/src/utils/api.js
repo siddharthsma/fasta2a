@@ -1,23 +1,47 @@
 import { v4 as uuidv4 } from 'uuid';
 import { API_CONFIG } from '../config';
 
-export const buildSendRequest = (input, sessionId, taskId, metadata) => ({
+export const buildSendRequest = (input, files, sessionId, taskId, metadata) => {
+  // Create message parts array
+  const parts = [];
+  
+  // Add text part if input exists
+  if (input.trim()) {
+    parts.push({
+      type: 'text',
+      text: input
+    });
+  }
+
+  // Add file parts
+  if (files?.length > 0) {
+    files.forEach(file => {
+      parts.push({
+        type: 'file',
+        file: {
+          name: file.name,
+          mimeType: file.type,
+          bytes: file.base64 // We'll need to convert files to base64
+        }
+      });
+    });
+  }
+
+  return {
     jsonrpc: '2.0',
     id: taskId,
     method: 'tasks/send',
     params: {
-      id: taskId,       // Should come from currentTaskId
+      id: taskId,
       sessionId: sessionId,
       message: {
         role: 'user',
-        parts: [{
-          type: 'text',
-          text: input
-        }]
+        parts: parts,
       },
-      metadata
+      metadata: metadata || {}
     }
-  });
+  };
+};
 
 export const parseSendResponse = (response) => {
     if (!response.result) throw new Error('Invalid response format');
