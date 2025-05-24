@@ -1,15 +1,18 @@
 # Library imports
 from typing import Optional, Dict, Any, List
+import base64
 
 # Local imports
 from smarta2a.state_stores.base_state_store import BaseStateStore
+from smarta2a.file_stores.base_file_store import BaseFileStore
 from smarta2a.history_update_strategies.history_update_strategy import HistoryUpdateStrategy
-from smarta2a.utils.types import Message, StateData, Task, TaskStatus, TaskState, PushNotificationConfig, Part
+from smarta2a.utils.types import Message, StateData, Task, TaskStatus, TaskState, PushNotificationConfig, Part, FilePart
 from smarta2a.server.nats_client import NATSClient
 
 class StateManager:
-    def __init__(self, state_store: BaseStateStore, history_strategy: HistoryUpdateStrategy, nats_server_url: Optional[str] = "nats://localhost:4222"):
+    def __init__(self, state_store: BaseStateStore, file_store: BaseFileStore, history_strategy: HistoryUpdateStrategy, nats_server_url: Optional[str] = "nats://localhost:4222"):
         self.state_store = state_store
+        self.file_store = file_store
         self.strategy = history_strategy
         self.nats_client = NATSClient(server_url=nats_server_url)
     
@@ -71,6 +74,9 @@ class StateManager:
             new_messages=[message]
         )
         latest_state.task.metadata = metadata
+
+        # Process files before persistence
+        await self._process_file_parts(latest_state)
 
         await self.update_state(latest_state)
 
@@ -187,3 +193,16 @@ class StateManager:
                     except ValueError as e:
                         print(f"Invalid part in artifact: {e}")
         return parts
+    
+    async def _process_file_parts(self, state: StateData):
+        """Replace file bytes with URIs and persist files"""
+        for msg in state.context_history:
+            for part in msg.parts:
+                if isinstance(part, FilePart) and part.file.bytes:
+                    uri = await self.file_store.upload(
+                        content=base64.b64decode(part.file.bytes),
+                        task_id=state.task_id,
+                        filename=part.file.name
+                    )
+                    part.file.uri = uri
+                    part.file.bytes = None  # Remove from state

@@ -9,6 +9,7 @@ from smarta2a.utils.types import AgentCard, AgentCapabilities, AgentSkill
 from smarta2a.state_stores.inmemory_state_store import InMemoryStateStore
 from smarta2a.history_update_strategies.append_strategy import AppendStrategy
 from smarta2a.server.state_manager import StateManager
+from smarta2a.file_stores.local_file_store import LocalFileStore
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -34,7 +35,7 @@ openai_provider = OpenAIProvider(
     mcp_server_urls_or_paths=["npx @openbnb/mcp-server-airbnb --ignore-robots-txt"],
 )
 
-state_manager = StateManager(state_store=InMemoryStateStore(), history_strategy=AppendStrategy())
+state_manager = StateManager(state_store=InMemoryStateStore(), file_store=LocalFileStore(), history_strategy=AppendStrategy())
 
 # Create the agent
 agent = A2AAgent(

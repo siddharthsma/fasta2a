@@ -69,35 +69,33 @@ class OpenAIProvider(BaseLLMProvider):
             self.agent_cards
         )
     
+    
     def _convert_part(self, part: Union[TextPart, FilePart, DataPart]) -> dict:
         """Convert a single part to OpenAI-compatible format"""
         if isinstance(part, TextPart):
             return {"type": "text", "text": part.text}
             
         elif isinstance(part, FilePart):
-            if part.file.mimeType not in self.supported_media_types:
-                raise ValueError(f"Unsupported media type: {part.file.mimeType}")
-                
-            if part.file.uri:
-                return {
-                    "type": "image_url",
-                    "image_url": {"url": part.file.uri}
-                }
-            elif part.file.bytes:
-                return {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{part.file.mimeType};base64,{part.file.bytes}"
-                    }
-                }
-                
-        elif isinstance(part, DataPart):
+            # Treat all files as attachments with placeholder metadata
+            fc = part.file
+            # Determine URI (either direct or data URL)
+            if fc.uri:
+                uri = fc.uri
+            else:
+                uri = f"data:{fc.mimeType};base64,{fc.bytes}"
+
+            placeholder = (
+                f'[FileAttachment name="{fc.name or ""}" '
+                f'mimeType="{fc.mimeType or ""}" '
+                f'uri="{uri}"]'
+            )
+            return {"type": "text", "text": placeholder}
+
+        else:
             return {
                 "type": "text",
                 "text": f"[Structured Data]\n{json.dumps(part.data, indent=2)}"
             }
-            
-        raise ValueError(f"Unsupported part type: {type(part)}")
 
 
     def _convert_messages(self, messages: List[Message]) -> List[dict]:

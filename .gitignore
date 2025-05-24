@@ -107,3 +107,6 @@ venv.bak/
 
 # Apple
 .DS_Store
+
+# Filestore
+filestore/
