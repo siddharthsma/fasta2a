@@ -21,6 +21,7 @@ function App() {
   const subscription = useRef(null);
   const [hasUpdates, setHasUpdates] = useState(new Set());
   const [attachedFiles, setAttachedFiles] = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   
   // Add useEffect for fetching the tasks and updating the chats - on initial load.
@@ -334,13 +335,28 @@ const removeFile = (fileName) => {
   return (
     <div className="app">
       {/* Left Sidebar */}
-      <div className="sidebar">
+      <div className={`sidebar ${isSidebarOpen ? 'open' : 'collapsed'}`}>
         <div className="logo-container">
-          <img src="logo.png" alt="Logo" className="logo" />
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="sidebar-toggle">
+            {isSidebarOpen ? (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M3 12h18M3 6h18M3 18h18"/>
+              </svg>
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+            )}
+          </button>
+          {isSidebarOpen && <h2>SmartA2A</h2>}
         </div>
-        
+
         <button className="new-chat-btn" onClick={handleNewChat}>
-          + New Task
+          {isSidebarOpen ? '+ New Task' : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+          )}
         </button>
         
         <div className="chat-history">
@@ -352,6 +368,7 @@ const removeFile = (fileName) => {
           onChatSelect={handleChatSelect}
           hasUpdates={hasUpdates}
           setHasUpdates={setHasUpdates}
+          isSidebarOpen={isSidebarOpen}
         />
         <ChatSection 
           title="Yesterday" 
@@ -361,6 +378,7 @@ const removeFile = (fileName) => {
           onChatSelect={handleChatSelect}
           hasUpdates={hasUpdates}
           setHasUpdates={setHasUpdates}
+          isSidebarOpen={isSidebarOpen}
         />
         <ChatSection 
           title="Previous 7 Days" 
@@ -370,6 +388,7 @@ const removeFile = (fileName) => {
           onChatSelect={handleChatSelect}
           hasUpdates={hasUpdates}
           setHasUpdates={setHasUpdates}
+          isSidebarOpen={isSidebarOpen}
         />
         <ChatSection 
           title="Older" 
@@ -379,6 +398,7 @@ const removeFile = (fileName) => {
           onChatSelect={handleChatSelect}
           hasUpdates={hasUpdates}
           setHasUpdates={setHasUpdates}
+          isSidebarOpen={isSidebarOpen}
         />
         </div>
       </div>
@@ -601,13 +621,13 @@ const ModeSelector = ({ mode, setMode }) => {
   return (
     <div className="mode-selector">
       <button
-        className={mode === 'send' ? 'active' : ''}
+        className={`mode-btn ${mode === 'send' ? 'active' : ''}`}
         onClick={() => setMode('send')}
       >
         Send
       </button>
       <button
-        className={mode === 'subscribe' ? 'active' : ''}
+        className={`mode-btn ${mode === 'subscribe' ? 'active' : ''}`}
         onClick={() => setMode('subscribe')}
       >
         Subscribe
@@ -620,52 +640,90 @@ const ChatSection = ({
   title, 
   chats, 
   daysAgo, 
-  activeChat,  // Add prop
+  activeChat,
   onChatSelect,
   hasUpdates,
-  setHasUpdates
+  setHasUpdates,
+  isSidebarOpen
 }) => {
+  const [hoveredChatId, setHoveredChatId] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const now = new Date();
   const filteredChats = chats.filter(chat => {
-    const now = new Date();
     const taskDate = new Date(chat.timestamp);
     const diffDays = Math.floor((now - taskDate) / (1000 * 60 * 60 * 24));
     
-    if (daysAgo === 0) return diffDays === 0; // Today
-    if (daysAgo === 1) return diffDays === 1; // Yesterday
-    if (daysAgo === 7) return diffDays > 1 && diffDays <= 7; // Last 7 days
-    return diffDays > 7; // Older
+    if (daysAgo === 0) return diffDays === 0;
+    if (daysAgo === 1) return diffDays === 1;
+    if (daysAgo === 7) return diffDays > 1 && diffDays <= 7;
+    return diffDays > 7;
   });
 
-  if (filteredChats.length === 0) return null;
+  if (!isSidebarOpen && filteredChats.length === 0) return null;
+
+  const handleMouseEnter = (e, chat) => {
+    if (!isSidebarOpen) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setTooltipPosition({
+        x: rect.left + rect.width + 10,
+        y: rect.top + window.scrollY
+      });
+      setHoveredChatId(chat.id);
+    }
+  };
 
   return (
     <div className="chat-section">
-      <h3>{title}</h3>
+      {isSidebarOpen && <h3>{title}</h3>}
       <ul>
         {filteredChats.map(chat => (
           <li 
             key={chat.id} 
             className={`chat-item ${activeChat === chat.id ? 'active' : ''}`}
+            onMouseEnter={(e) => handleMouseEnter(e, chat)}
+            onMouseLeave={() => setHoveredChatId(null)}
             onClick={() => {
               onChatSelect(chat);
-
-              // Clear update notification when selecting
               setHasUpdates(prev => {
                 const newSet = new Set(prev);
                 newSet.delete(chat.id);
                 return newSet;
               });
-            
-            }}  // Use passed prop
+            }}
           >
-            {chat.title}
-            {hasUpdates.has(chat.id) && ( // NEW: Notification dot
-              <span className="update-dot"></span>
+            {isSidebarOpen ? (
+              <>
+                <span className="chat-title">{chat.title}</span>
+                {hasUpdates.has(chat.id) && <span className="update-dot"></span>}
+              </>
+            ) : (
+              <div className="collapsed-chat-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                {hasUpdates.has(chat.id) && <span className="update-dot"></span>}
+              </div>
+            )}
+            {!isSidebarOpen && hoveredChatId === chat.id && (
+              <Tooltip text={chat.title} position={tooltipPosition} />
             )}
           </li>
         ))}
       </ul>
+    </div>
+  );
+};
+
+const Tooltip = ({ text, position }) => {
+  return (
+    <div 
+      className="chat-tooltip"
+      style={{
+        left: position.x,
+        top: position.y
+      }}
+    >
+      {text}
     </div>
   );
 };
