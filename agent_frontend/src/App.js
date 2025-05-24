@@ -555,12 +555,22 @@ const Message = ({ message }) => (
               <ReactMarkdown 
                 remarkPlugins={[remarkGfm]}
                 components={{
+                  // Enhanced markdown components
+                  h1: ({ node, ...props }) => <h1 className="md-h1" {...props} />,
+                  h2: ({ node, ...props }) => <h2 className="md-h2" {...props} />,
+                  h3: ({ node, ...props }) => <h3 className="md-h3" {...props} />,
+                  p: ({ node, ...props }) => <p className="md-p" {...props} />,
+                  ul: ({ node, ...props }) => <ul className="md-ul" {...props} />,
+                  ol: ({ node, ...props }) => <ol className="md-ol" {...props} />,
+                  li: ({ node, ...props }) => <li className="md-li" {...props} />,
                   code({ node, inline, className, children, ...props }) {
                     return !inline ? (
-                      <div className="code-block">
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
+                      <div className="code-block-wrapper">
+                        <pre className="code-block">
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        </pre>
                       </div>
                     ) : (
                       <code className="inline-code" {...props}>
@@ -568,18 +578,27 @@ const Message = ({ message }) => (
                       </code>
                     );
                   },
-                  pre({ node, children, ...props }) {
-                    return <pre className="pre-block" {...props}>{children}</pre>;
-                  },
-                  blockquote({ node, children, ...props }) {
-                    return <blockquote className="quote-block" {...props}>{children}</blockquote>;
-                  },
-                  ol({ node, children, ...props }) {
-                    return <ol className="numbered-list" {...props}>{children}</ol>;
-                  },
-                  ul({ node, children, ...props }) {
-                    return <ul className="bulleted-list" {...props}>{children}</ul>;
-                  }
+                  blockquote: ({ node, children, ...props }) => (
+                    <blockquote className="md-blockquote" {...props}>
+                      {children}
+                    </blockquote>
+                  ),
+                  table: ({ node, children, ...props }) => (
+                    <div className="table-wrapper">
+                      <table className="md-table" {...props}>
+                        {children}
+                      </table>
+                    </div>
+                  ),
+                  a: ({ node, children, ...props }) => (
+                    <a className="md-link" {...props} target="_blank" rel="noopener noreferrer">
+                      {children}
+                    </a>
+                  ),
+                  img: ({ node, ...props }) => (
+                    <img className="md-image" {...props} alt="content" />
+                  ),
+                  hr: ({ node, ...props }) => <hr className="md-hr" {...props} />,
                 }}
               >
                 {part.text}

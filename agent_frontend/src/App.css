@@ -16,6 +16,9 @@
   box-sizing: border-box;
 }
 
+/* Add font family to app */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+
 .app {
   display: flex;
   height: 100vh;
@@ -478,6 +481,131 @@ textarea:focus {
   background: var(--primary);
   color: white;
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* ======= Markdown Content ======= */
+/* Markdown Content Improvements */
+.markdown-content {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.md-h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 1.5rem 0 1rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.md-h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin: 1.25rem 0 0.75rem;
+}
+
+.md-h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+}
+
+.md-p {
+  margin: 0.75rem 0;
+  word-wrap: break-word;
+}
+
+.md-ul, .md-ol {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+}
+
+.md-li {
+  margin: 0.25rem 0;
+  padding-left: 0.5rem;
+}
+
+.md-blockquote {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border-left: 4px solid var(--primary);
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+.code-block-wrapper {
+  margin: 1rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.code-block {
+  margin: 0;
+  padding: 1rem;
+  background: #1e293b;
+  color: #f8fafc;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.875rem;
+}
+
+.inline-code {
+  background: #e2e8f0;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.875rem;
+  color: #334155;
+}
+
+.md-table {
+  width: 100%;
+  margin: 1rem 0;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.md-table th {
+  background: #f1f5f9;
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.md-table td {
+  padding: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.md-table tr:hover td {
+  background: #f8fafc;
+}
+
+.md-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md-link:hover {
+  color: #2563eb;
+}
+
+.md-image {
+  max-width: 100%;
+  height: auto;
+  margin: 1rem 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.md-hr {
+  margin: 1.5rem 0;
+  border: 0;
+  border-top: 1px solid var(--border);
 }
 
 /* ======= Animations ======= */
