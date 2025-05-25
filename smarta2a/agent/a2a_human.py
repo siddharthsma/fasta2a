@@ -7,7 +7,6 @@ from typing import Optional
 
 # Local imports
 from smarta2a.server import SmartA2A
-from smarta2a.model_providers.base_llm_provider import BaseLLMProvider
 from smarta2a.server.state_manager import StateManager
 from smarta2a.utils.types import StateData, SendTaskRequest, AgentCard, WebhookRequest, WebhookResponse, TextPart, DataPart, FilePart
 from smarta2a.client.a2a_client import A2AClient
@@ -16,11 +15,9 @@ class A2AHuman:
     def __init__(
             self,
             name: str,
-            model_provider: BaseLLMProvider,
             agent_card: AgentCard = None,
             state_manager: StateManager = None,
         ):
-        self.model_provider = model_provider
         self.state_manager = state_manager
         self.app = SmartA2A(
             name=name,
@@ -32,7 +29,7 @@ class A2AHuman:
     def __register_handlers(self):
         @self.app.on_event("startup")
         async def on_startup():
-            await self.model_provider.load()
+            pass
         
         @self.app.app.get("/tasks")
         async def get_tasks(fields: Optional[str] = Query(None)):
@@ -42,7 +39,7 @@ class A2AHuman:
         
         @self.app.on_send_task(forward_to_webhook=True)
         async def on_send_task(request: SendTaskRequest, state: StateData):
-            return "Give me some time to respond"
+            return "I am human and take some time to respond, but I will definitely respond to your request"
         
         @self.app.webhook()
         async def on_webhook(request: WebhookRequest, state: StateData):

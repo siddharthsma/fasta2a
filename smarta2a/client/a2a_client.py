@@ -54,6 +54,15 @@ class A2AClient:
         metadata: dict[str, Any] | None = None,
     ):
         """Send a task to another Agent."""
+
+        # Auto-create PushNotificationConfig if not provided and we have a URL
+        if push_notification is None and self.url:
+            push_notification = PushNotificationConfig(
+                url=f"{self.url}/webhook",
+                token=None,
+                authentication=None
+            )
+
         params = TaskRequestBuilder.build_send_task_request(
             id=id,
             role=role,
@@ -84,6 +93,15 @@ class A2AClient:
         metadata: dict[str, Any] | None = None,
     ):
         """Send to another Agent and receive a stream of responses."""
+        
+        # Auto-create PushNotificationConfig if not provided and we have a URL
+        if push_notification is None and self.url:
+            push_notification = PushNotificationConfig(
+                url=f"{self.url}/webhook",
+                token=None,
+                authentication=None
+            )
+
         params = TaskRequestBuilder.build_send_task_request(
             id=id,
             role=role,

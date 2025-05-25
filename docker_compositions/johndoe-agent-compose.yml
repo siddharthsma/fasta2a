@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+
+  johndoe-agent-frontend:-agent-frontend:
+      image: sidambegaonkar/a2aagent-frontend:alphav1
+      networks:
+        - a2a-network
+      ports:
+        - "8082:80"
+      environment:
+        - SERVER_URL=http://localhost:8003
+        - NATS_WS_URL=http://localhost:9225
+      depends_on:
+        - johndoe-agent-nats
+        - johndoe-agent
+    
+  johndoe-agent:  # Example companion service
+    image: sidambegaonkar/a2ahuman-inmemory-append-server:alphav1
+    networks:
+      - a2a-network
+    environment:
+      - AGENT_NAME=johndoe-agent
+      - AGENT_URL=http://johndoe-agent:8000/rpc
+      - AGENT_DESCRIPTION=A traveller who can recommend good places to visit in a city
+      - SKILLS_JSON=[{"id":"recommend_places","name":"Recommend places","description":"Recommend places to visit in a city"}]
+      - NATS_SERVER_URL=nats://johndoe-agent-nats:4222
+    depends_on:
+      - johndoe-agent-nats
+    ports:
+      - "8003:8000"
+  
+  johndoe-agent-nats:
+    image: nats:latest
+    volumes:
+      - ./nats-server.conf:/etc/nats/nats-server.conf
+    command: -c /etc/nats/nats-server.conf
+    networks:
+      - a2a-network
+    ports:
+      - "9225:9222"
+
+networks:
+  a2a-network:
+    external: true
