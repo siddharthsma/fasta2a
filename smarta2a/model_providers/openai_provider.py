@@ -193,10 +193,12 @@ class OpenAIProvider(BaseLLMProvider):
 
             # Call the actual tool
             try:
+                
                 override_args = {
                     'id': state.task_id,
                     'sessionId': state.task.sessionId,
-                    'metadata': state.task.metadata
+                    'metadata': state.task.metadata,
+                    'pushNotification': state.push_notification_config
                 }
                 
                 tool_result = await self.tools_manager.call_tool(fn_name, fn_args, override_args)

@@ -37,7 +37,6 @@ class SmartA2A:
                 name: str,
                 agent_card: Optional[AgentCard] = None,
                 state_manager: Optional[StateManager] = None,
-                has_frontend: bool = False,
                 **fastapi_kwargs
                 ):
         self.name = name
@@ -46,7 +45,6 @@ class SmartA2A:
         self.state_mgr = state_manager
         self.app = FastAPI(title=name, **fastapi_kwargs)
         self.router = APIRouter()
-        self.has_frontend = has_frontend
         self._setup_cors()
         self._setup_routes()
         self.server_config = {
@@ -126,6 +124,9 @@ class SmartA2A:
         async def handle_webhook(request: Request):
             try:
                 data = await request.json()
+                print("--- In handle_webhook in server.py ---")
+                print(data)
+                print("--- end of handle_webhook in server.py ---")
                 req = WebhookRequest.model_validate(data)
             except Exception as e:
                 return WebhookResponse(accepted=False, error=str(e)).model_dump()

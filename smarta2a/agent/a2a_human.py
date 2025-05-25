@@ -1,5 +1,3 @@
-# TODO: Implement a human agent that can be used to interact with the A2A server
-
 # Library imports
 from fastapi import Query
 from fastapi.responses import JSONResponse
@@ -33,7 +31,7 @@ class A2AHuman:
         
         @self.app.app.get("/tasks")
         async def get_tasks(fields: Optional[str] = Query(None)):
-            state_store = self.state_mgr.get_store()
+            state_store = self.state_manager.get_store()
             tasks_data = state_store.get_all_tasks(fields)
             return JSONResponse(content=tasks_data)
         
@@ -43,7 +41,7 @@ class A2AHuman:
         
         @self.app.webhook()
         async def on_webhook(request: WebhookRequest, state: StateData):
-            pass
+            return "Acknowledgement received"
 
     def get_app(self):
         return self.app

@@ -157,6 +157,10 @@ class RequestHandler:
             # If push_notification_config is set send the task to the push notification url
             if push_notification_config and forward_to_webhook:
                 try:
+                    print("call to send_to_webhook")
+                    print(push_notification_config.url)
+                    print(task.model_dump())
+                    print("--- end ---")
                     self.a2a_aclient.send_to_webhook(webhook_url=push_notification_config.url,id=task_id,task=task.model_dump())
                 except Exception as e:
                     print(f"Error sending task to webhook: {e}")

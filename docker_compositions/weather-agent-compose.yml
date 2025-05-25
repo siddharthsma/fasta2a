@@ -30,6 +30,7 @@ services:
       - AGENT_DESCRIPTION=A weather agent that helps with queries
       - SKILLS_JSON=[{"id":"weather_by_location","name":"Get current weather by location","description":"Can get current weather for a given latitude and longitude"},{"id":"weather_forecast_by_location","name":"Get weather forecast by location","description":"Can get weather forecast for a given latitude and longitude"},{"id":"weather_by_zipcode","name":"Get current weather by zipcode","description":"Can get current weather for a given zipcode"},{"id":"weather_forecast_by_zipcode","name":"Get weather forecast by zipcode","description":"Can get weather forecast for a given zipcode"}]
       - NATS_SERVER_URL=nats://weather-agent-nats:4222
+      - PUSH_NOTIFICATION_URL=http://weather-agent:8000/webhook
     depends_on:
       - weather-agent-nats
     ports:

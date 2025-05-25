@@ -69,6 +69,9 @@ function App() {
           for await (const msg of subscription.current) {
             const rawData = new TextDecoder().decode(msg.data);
             const update = JSON.parse(rawData);
+            console.log("--- NATS update ---")
+            console.log(update)
+            console.log("--- NATS update end ---")
             handleNATSUpdate(update);
           }
         })();
@@ -110,7 +113,7 @@ function App() {
     setChats(prevChats => {
       const existingChat = prevChats.find(c => c.id === update.taskId);
       const isActive = activeChat === update.taskId;
-      
+      console.log("handleNATSUpdate: ", update);
       // Case 1: Update active chat
       if (existingChat && isActive) {
         setMessages(prev => [...prev, ...update.messages]);

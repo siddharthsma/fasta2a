@@ -30,6 +30,7 @@ services:
       - AGENT_DESCRIPTION=An Airbnb agent that helps with queries
       - SKILLS_JSON=[{"id":"search_listings","name":"Search listings","description":"Search for Airbnb listings"},{"id":"get_listing_details","name":"Get listing details","description":"Get detailed information about a listing"}]
       - NATS_SERVER_URL=nats://airbnb-agent-nats:4222
+      - PUSH_NOTIFICATION_URL=http://airbnb-agent:8000/webhook
     depends_on:
       - airbnb-agent-nats
     ports:

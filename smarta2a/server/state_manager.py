@@ -10,11 +10,12 @@ from smarta2a.utils.types import Message, StateData, Task, TaskStatus, TaskState
 from smarta2a.server.nats_client import NATSClient
 
 class StateManager:
-    def __init__(self, state_store: BaseStateStore, file_store: BaseFileStore, history_strategy: HistoryUpdateStrategy, nats_server_url: Optional[str] = "nats://localhost:4222"):
+    def __init__(self, state_store: BaseStateStore, file_store: BaseFileStore, history_strategy: HistoryUpdateStrategy, nats_server_url: Optional[str] = "nats://localhost:4222", push_notification_config: Optional[PushNotificationConfig] = None):
         self.state_store = state_store
         self.file_store = file_store
         self.strategy = history_strategy
         self.nats_client = NATSClient(server_url=nats_server_url)
+        self.push_notification_config = push_notification_config
     
     async def load(self):
         await self.nats_client.connect()
@@ -40,11 +41,15 @@ class StateManager:
             history=[],
             metadata={}
         )
+
+        # Use self.push_notification_config if push_notification_config is None
+        notification_config = push_notification_config if push_notification_config is not None else self.push_notification_config
+
         state = StateData(
             task_id=task_id,
             task=initial_task,
             context_history=[],
-            push_notification_config=push_notification_config
+            push_notification_config=notification_config
         )
         self.state_store.initialize_state(state)
         return state
@@ -152,6 +157,9 @@ class StateManager:
 
         # Publish update through NATS client
         payload = self._prepare_update_payload(state_data)
+        print("--- NATS payload ---")
+        print(payload)
+        print("--- NATS payload end ---")
         await self.nats_client.publish("state.updates", payload)
     
     def get_store(self) -> Optional[BaseStateStore]:
@@ -172,9 +180,6 @@ class StateManager:
 
     def _prepare_update_payload(self, state: StateData) -> Dict[str, Any]:
         """Prepare NATS message payload from state data"""
-        print("--- state.task ---")
-        print(state.task)
-        print("--- end of state.task ---")
         return {
             "taskId": state.task_id,
             "taskName": state.task.metadata.get("taskName", ""),

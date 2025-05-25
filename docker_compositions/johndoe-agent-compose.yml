@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
 
-  johndoe-agent-frontend:-agent-frontend:
+  johndoe-agent-frontend:
       image: sidambegaonkar/a2aagent-frontend:alphav1
       networks:
         - a2a-network
@@ -25,6 +25,7 @@ services:
       - AGENT_DESCRIPTION=A traveller who can recommend good places to visit in a city
       - SKILLS_JSON=[{"id":"recommend_places","name":"Recommend places","description":"Recommend places to visit in a city"}]
       - NATS_SERVER_URL=nats://johndoe-agent-nats:4222
+      - PUSH_NOTIFICATION_URL=http://johndoe-agent:8000/webhook
     depends_on:
       - johndoe-agent-nats
     ports:

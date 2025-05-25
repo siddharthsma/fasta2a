@@ -54,15 +54,6 @@ class A2AClient:
         metadata: dict[str, Any] | None = None,
     ):
         """Send a task to another Agent."""
-
-        # Auto-create PushNotificationConfig if not provided and we have a URL
-        if push_notification is None and self.url:
-            push_notification = PushNotificationConfig(
-                url=f"{self.url}/webhook",
-                token=None,
-                authentication=None
-            )
-
         params = TaskRequestBuilder.build_send_task_request(
             id=id,
             role=role,
@@ -93,15 +84,6 @@ class A2AClient:
         metadata: dict[str, Any] | None = None,
     ):
         """Send to another Agent and receive a stream of responses."""
-        
-        # Auto-create PushNotificationConfig if not provided and we have a URL
-        if push_notification is None and self.url:
-            push_notification = PushNotificationConfig(
-                url=f"{self.url}/webhook",
-                token=None,
-                authentication=None
-            )
-
         params = TaskRequestBuilder.build_send_task_request(
             id=id,
             role=role,
@@ -207,6 +189,9 @@ class A2AClient:
                     webhook_url, json=request.model_dump(), timeout=30
                 )
                 response.raise_for_status()
+                print("--- response from webhook ---")
+                print(response.json())
+                print("--- end of response from webhook ---")
                 return response.json()
             except httpx.HTTPStatusError as e:
                 raise A2AClientHTTPError(e.response.status_code, str(e)) from e

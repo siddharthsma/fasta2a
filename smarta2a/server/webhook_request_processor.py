@@ -15,6 +15,9 @@ class WebhookRequestProcessor:
     async def process_request(self, request: WebhookRequest) -> WebhookResponse:
         if self.state_manager:
             state_data = self.state_manager.get_and_update_state_from_webhook(request.id, request.result)
+            print("--- state_data in webhook_request_processor.py ---")
+            print(state_data)
+            print("--- end of state_data in webhook_request_processor.py ---")
             return await self._handle_webhook(request, state_data)
         else:
             return await self._handle_webhook(request)
@@ -55,6 +58,7 @@ class WebhookRequestProcessor:
                     )
                     
                     # Persist state
+                    print("call to update state - before webhook function")
                     await self.state_manager.update_state(state_data)
 
             # --- Step 2: Call Webhook Function ---
@@ -81,6 +85,7 @@ class WebhookRequestProcessor:
                     new_messages=updated_messages
                 )
                 
+                print("call to update state - after webhook function")
                 await self.state_manager.update_state(state_data)
 
             # --- Step 4: Push Notification ---

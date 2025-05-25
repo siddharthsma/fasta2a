@@ -24,12 +24,13 @@ services:
       - MODEL=gpt-4o-mini
       - BASE_SYSTEM_PROMPT=You are a cheerful assistant that can talk to other agents and delegate tasks to them.
       - MCP_SERVER_URLS=[]
-      - COLLABORATING_AGENT_URLS=["http://weather-agent:8000", "http://airbnb-agent:8000"]
+      - COLLABORATING_AGENT_URLS=["http://weather-agent:8000", "http://airbnb-agent:8000", "http://johndoe-agent:8000"]
       - AGENT_NAME=delegator-agent
       - AGENT_URL=http://delegator-agent:8000/rpc
       - AGENT_DESCRIPTION=A delegator agent that helps with queries
       - SKILLS_JSON=[]
       - NATS_SERVER_URL=nats://delegator-agent-nats:4222
+      - PUSH_NOTIFICATION_URL=http://delegator-agent:8000/webhook
     depends_on:
       - delegator-agent-nats
     ports:
