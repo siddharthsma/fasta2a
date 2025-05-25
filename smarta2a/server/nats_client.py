@@ -19,10 +19,8 @@ class NATSClient:
                 # Use the current running loop by default
                 await self.nats.connect(self.server_url)
                 self._connected = True
-                print(f"Connected to NATS at {self.server_url}")
             except Exception as e:
-                print(f"Failed to connect to NATS: {e}")
-                raise
+                pass
 
     async def publish(self, subject: str, payload: Dict[str, Any]) -> None:
         """Publishes a JSON-encoded message to a NATS subject, auto-connecting if needed."""
@@ -42,7 +40,6 @@ class NATSClient:
         if self._connected:
             await self.nats.close()
             self._connected = False
-            print("NATS connection closed")
 
     @property
     def is_connected(self) -> bool:

@@ -198,7 +198,7 @@ class OpenAIProvider(BaseLLMProvider):
                     'id': state.task_id,
                     'sessionId': state.task.sessionId,
                     'metadata': state.task.metadata,
-                    'pushNotification': state.push_notification_config
+                    'push_notification': state.push_notification_config
                 }
                 
                 tool_result = await self.tools_manager.call_tool(fn_name, fn_args, override_args)

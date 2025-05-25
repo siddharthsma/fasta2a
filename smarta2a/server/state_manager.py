@@ -87,7 +87,7 @@ class StateManager:
 
         return latest_state
     
-    def get_and_update_state_from_webhook(self, task_id: str, result: Task) -> StateData:
+    async def get_and_update_state_from_webhook(self, task_id: str, result: Task) -> StateData:
         """
         Update existing state with webhook result data, including:
         - Merges task history from result
@@ -146,6 +146,11 @@ class StateManager:
         # Update task status if provided
         if result.status:
             updated_state.task.status = result.status
+        
+         # Process files before persistence
+        await self._process_file_parts(updated_state)
+
+        await self.update_state(updated_state)
 
         return updated_state
     
@@ -157,9 +162,6 @@ class StateManager:
 
         # Publish update through NATS client
         payload = self._prepare_update_payload(state_data)
-        print("--- NATS payload ---")
-        print(payload)
-        print("--- NATS payload end ---")
         await self.nats_client.publish("state.updates", payload)
     
     def get_store(self) -> Optional[BaseStateStore]:

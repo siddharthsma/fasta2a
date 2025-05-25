@@ -15,9 +15,6 @@ class WebhookRequestProcessor:
     async def process_request(self, request: WebhookRequest) -> WebhookResponse:
         if self.state_manager:
             state_data = self.state_manager.get_and_update_state_from_webhook(request.id, request.result)
-            print("--- state_data in webhook_request_processor.py ---")
-            print(state_data)
-            print("--- end of state_data in webhook_request_processor.py ---")
             return await self._handle_webhook(request, state_data)
         else:
             return await self._handle_webhook(request)
@@ -37,29 +34,6 @@ class WebhookRequestProcessor:
                         context_history=[],
                         push_notification_config=None
                     )
-                else:
-                    existing_task = state_data.task
-                    
-                    # Overwrite artifacts
-                    existing_task.artifacts = incoming_task.artifacts.copy() if incoming_task.artifacts else []
-                    
-                    # Merge metadata
-                    existing_task.metadata = {**(existing_task.metadata or {}), **(incoming_task.metadata or {})}
-                    
-                    # Build messages from artifact parts (role="agent" as in handle_send_task)
-                    all_parts = [part for artifact in incoming_task.artifacts for part in artifact.parts] if incoming_task.artifacts else []
-                    new_messages = [Message(role="agent", parts=all_parts, metadata=incoming_task.metadata)]
-                    
-                    # Update context history using strategy
-                    history_strategy = self.state_manager.get_history_strategy()
-                    state_data.context_history = history_strategy.update_history(
-                        existing_history=state_data.context_history,
-                        new_messages=new_messages
-                    )
-                    
-                    # Persist state
-                    print("call to update state - before webhook function")
-                    await self.state_manager.update_state(state_data)
 
             # --- Step 2: Call Webhook Function ---
             webhook_response = await self.webhook_fn(request, state_data) if state_data else await self.webhook_fn(request)
@@ -80,20 +54,17 @@ class WebhookRequestProcessor:
                 updated_messages = [Message(role="agent", parts=updated_parts, metadata=updated_task.metadata)]
                 
                 # Update context history again
-                state_data.context_history = history_strategy.update_history(
-                    existing_history=state_data.context_history,
-                    new_messages=updated_messages
-                )
-                
-                print("call to update state - after webhook function")
-                await self.state_manager.update_state(state_data)
+                if self.state_manager:
+                    history_strategy = self.state_manager.get_history_strategy()
+                    state_data.context_history = history_strategy.update_history(
+                        existing_history=state_data.context_history,
+                        new_messages=updated_messages
+                    )
+                    await self.state_manager.update_state(state_data)
 
             # --- Step 4: Push Notification ---
-            push_url = (
-                state_data.push_notification_config.url 
-                if state_data and state_data.push_notification_config 
-                else None
-            )
+            push_url = state_data.push_notification_config.url if state_data and state_data.push_notification_config else None
+            
             if push_url:
                 try:
                     self.a2a_aclient.send_to_webhook(

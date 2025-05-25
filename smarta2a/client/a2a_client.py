@@ -189,9 +189,6 @@ class A2AClient:
                     webhook_url, json=request.model_dump(), timeout=30
                 )
                 response.raise_for_status()
-                print("--- response from webhook ---")
-                print(response.json())
-                print("--- end of response from webhook ---")
                 return response.json()
             except httpx.HTTPStatusError as e:
                 raise A2AClientHTTPError(e.response.status_code, str(e)) from e

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "smarta2a"
-version = "0.4.18"
+version = "0.4.19"
 authors = [
     { name = "Siddharth Ambegaonkar", email = "siddharthsma@gmail.com" },
 ]
