@@ -15,9 +15,9 @@ class WebhookRequestProcessor:
     async def process_request(self, request: WebhookRequest) -> WebhookResponse:
         if self.state_manager:
             state_data = self.state_manager.get_and_update_state_from_webhook(request.id, request.result)
-            return await self._handle_webhook(request, state_data)
+            return await self._webhook_handler(request, state_data)
         else:
-            return await self._handle_webhook(request)
+            return await self._webhook_handler(request)
 
 
     async def _webhook_handler(self, request: WebhookRequest, state_data: Optional[StateData] = None) -> WebhookResponse:
@@ -67,11 +67,7 @@ class WebhookRequestProcessor:
             
             if push_url:
                 try:
-                    self.a2a_aclient.send_to_webhook(
-                        webhook_url=push_url,
-                        id=state_data.task_id,
-                        task=state_data.task
-                    )
+                    self.a2a_aclient.send_to_webhook(webhook_url=push_url, id=state_data.task_id, task=state_data.task)
                 except Exception as e:
                     return WebhookResponse(
                         id=request.id,
